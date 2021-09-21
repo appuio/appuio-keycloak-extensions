@@ -12,14 +12,6 @@ jobs:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0
-      - uses: actions/setup-java@v2
-        with:
-          distribution: 'temurin'
-          java-version: '16'
-          cache: maven
-      - name: Run build
-        run: make build.java -e maven_args="-B"
-
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v3
@@ -59,4 +51,3 @@ jobs:
           # Ensure target branch for release is "master"
           commit: master
           token: ${{ secrets.GITHUB_TOKEN }}
-          artifacts: target/appuio-keycloak-extensions.jar
