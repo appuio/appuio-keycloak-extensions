@@ -1,0 +1,20 @@
+name: Lint
+
+on:
+  pull_request: {}
+  push:
+    branches:
+      - master
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-java@v2
+        with:
+          distribution: 'temurin'
+          java-version: '16'
+          cache: maven
+      - name: Run linters
+        run: make lint -e maven_args="-B"
