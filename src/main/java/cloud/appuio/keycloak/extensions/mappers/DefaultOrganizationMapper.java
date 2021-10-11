@@ -68,7 +68,7 @@ public class DefaultOrganizationMapper extends AbstractClaimMapper {
 
     @Override
     public String getDisplayType() {
-        return "Default organization to attribute mapper";
+        return "Default Organization to Attribute";
     }
 
     @Override

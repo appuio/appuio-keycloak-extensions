@@ -91,7 +91,7 @@ public class ClaimToGroupMapper extends AbstractClaimMapper {
 
     @Override
     public String getDisplayType() {
-        return "Claim to Group Mapper";
+        return "Claim to Group";
     }
 
     @Override
