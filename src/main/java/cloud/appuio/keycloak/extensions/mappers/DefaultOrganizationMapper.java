@@ -5,32 +5,58 @@ import org.keycloak.broker.oidc.KeycloakOIDCIdentityProviderFactory;
 import org.keycloak.broker.oidc.OIDCIdentityProviderFactory;
 import org.keycloak.broker.oidc.mappers.AbstractClaimMapper;
 import org.keycloak.broker.provider.BrokeredIdentityContext;
-import org.keycloak.models.IdentityProviderMapperModel;
-import org.keycloak.models.KeycloakSession;
-import org.keycloak.models.RealmModel;
-import org.keycloak.models.UserModel;
+import org.keycloak.models.*;
 import org.keycloak.provider.ProviderConfigProperty;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class DefaultOrganizationMapper extends AbstractClaimMapper {
     private static final Logger logger = Logger.getLogger(DefaultOrganizationMapper.class);
 
+    public static final String DEFAULT_ORGANIZATION_ATTRIBUTE_KEY = "appuio.io/default-organization";
+
     @Override
     public void importNewUser(KeycloakSession session, RealmModel realm, UserModel user, IdentityProviderMapperModel mapperModel, BrokeredIdentityContext context) {
         super.importNewUser(session, realm, user, mapperModel, context);
-        this.assignDefaultOrganization(realm, user, mapperModel);
+        this.assignDefaultOrganization(user, mapperModel);
     }
 
     @Override
     public void updateBrokeredUser(KeycloakSession session, RealmModel realm, UserModel user, IdentityProviderMapperModel mapperModel, BrokeredIdentityContext context) {
         super.updateBrokeredUser(session, realm, user, mapperModel, context);
-        this.assignDefaultOrganization(realm, user, mapperModel);
+        this.assignDefaultOrganization(user, mapperModel);
     }
 
-    void assignDefaultOrganization(RealmModel realm, UserModel user, IdentityProviderMapperModel mapperModel) {
+    void assignDefaultOrganization(UserModel user, IdentityProviderMapperModel mapperModel) {
+        Set<String> defaultOrgAttribute = user.getAttributeStream(DEFAULT_ORGANIZATION_ATTRIBUTE_KEY).collect(Collectors.toSet());
+        boolean isAlreadyDefined = defaultOrgAttribute.stream().anyMatch(value -> !"".equals(value));
+        if (isAlreadyDefined) {
+            logger.debugf("Default organization is already set for user [%s]: [%s]",
+                    user.getUsername(),
+                    String.join(", ", defaultOrgAttribute)
+            );
+            return;
+        }
+        Set<GroupModel> groups = user.getGroupsStream()
+                .filter(group -> !"".equals(group.getName()))
+                .filter(groupModel -> true) // TODO: Ignore certain groups
+                .collect(Collectors.toSet());
 
+        if (groups.size() != 1) {
+            logger.warnf("Cannot determine default organization for [%s]. User is in multiple groups: [%s]. This may require manual action.",
+                    user.getUsername(),
+                    groups.stream().map(GroupModel::getName).collect(Collectors.joining(", ")));
+            return;
+        }
+        groups.stream().findFirst().ifPresent(group -> {
+                    user.setAttribute(DEFAULT_ORGANIZATION_ATTRIBUTE_KEY, Collections.singletonList(group.getName()));
+                    logger.infof("Set the default organization for [%s] to [%s].", user.getUsername(), group.getName());
+                }
+        );
     }
 
     // Boilerplate
