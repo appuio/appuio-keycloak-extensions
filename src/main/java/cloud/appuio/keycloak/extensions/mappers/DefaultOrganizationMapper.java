@@ -95,4 +95,9 @@ public class DefaultOrganizationMapper extends AbstractClaimMapper {
     public String getId() {
         return "appuio-default-organization-mapper";
     }
+
+    @Override
+    public boolean supportsSyncMode(IdentityProviderSyncMode syncMode) {
+        return Arrays.asList(IdentityProviderSyncMode.IMPORT, IdentityProviderSyncMode.FORCE).contains(syncMode);
+    }
 }

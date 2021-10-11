@@ -280,4 +280,9 @@ public class ClaimToGroupMapper extends AbstractClaimMapper {
     private static boolean isEmpty(String str) {
         return str == null || str.length() == 0;
     }
+
+    @Override
+    public boolean supportsSyncMode(IdentityProviderSyncMode syncMode) {
+        return Arrays.asList(IdentityProviderSyncMode.IMPORT, IdentityProviderSyncMode.FORCE).contains(syncMode);
+    }
 }
