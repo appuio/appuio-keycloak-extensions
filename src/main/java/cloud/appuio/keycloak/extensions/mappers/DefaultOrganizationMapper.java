@@ -8,11 +8,9 @@ import org.keycloak.broker.provider.BrokeredIdentityContext;
 import org.keycloak.models.*;
 import org.keycloak.provider.ProviderConfigProperty;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class DefaultOrganizationMapper extends AbstractClaimMapper {
     private static final Logger logger = Logger.getLogger(DefaultOrganizationMapper.class);
@@ -22,16 +20,16 @@ public class DefaultOrganizationMapper extends AbstractClaimMapper {
     @Override
     public void importNewUser(KeycloakSession session, RealmModel realm, UserModel user, IdentityProviderMapperModel mapperModel, BrokeredIdentityContext context) {
         super.importNewUser(session, realm, user, mapperModel, context);
-        this.assignDefaultOrganization(user, mapperModel);
+        this.assignDefaultOrganization(user, new MapperConfig(mapperModel.getConfig()));
     }
 
     @Override
     public void updateBrokeredUser(KeycloakSession session, RealmModel realm, UserModel user, IdentityProviderMapperModel mapperModel, BrokeredIdentityContext context) {
         super.updateBrokeredUser(session, realm, user, mapperModel, context);
-        this.assignDefaultOrganization(user, mapperModel);
+        this.assignDefaultOrganization(user, new MapperConfig(mapperModel.getConfig()));
     }
 
-    void assignDefaultOrganization(UserModel user, IdentityProviderMapperModel mapperModel) {
+    void assignDefaultOrganization(UserModel user, MapperConfig config) {
         Set<String> defaultOrgAttribute = user.getAttributeStream(DEFAULT_ORGANIZATION_ATTRIBUTE_KEY).collect(Collectors.toSet());
         boolean isAlreadyDefined = defaultOrgAttribute.stream().anyMatch(value -> !"".equals(value));
         if (isAlreadyDefined) {
@@ -41,25 +39,38 @@ public class DefaultOrganizationMapper extends AbstractClaimMapper {
             );
             return;
         }
-        Set<GroupModel> groups = user.getGroupsStream()
+        List<GroupModel> groups = user.getGroupsStream()
                 .filter(group -> !"".equals(group.getName()))
-                .filter(groupModel -> true) // TODO: Ignore certain groups
-                .collect(Collectors.toSet());
+                .filter(groupModel -> config.getIgnoreGroups().noneMatch(toIgnore -> groupModel.getName().matches(toIgnore)))
+                .collect(Collectors.toList());
 
         if (groups.size() != 1) {
-            logger.warnf("Cannot determine default organization for [%s]. User is in multiple groups: [%s]. This may require manual action.",
+            logger.warnf("Cannot determine default organization for [%s]. User is in following groups: [%s]. This may require manual action.",
                     user.getUsername(),
                     groups.stream().map(GroupModel::getName).collect(Collectors.joining(", ")));
             return;
         }
-        groups.stream().findFirst().ifPresent(group -> {
-                    user.setAttribute(DEFAULT_ORGANIZATION_ATTRIBUTE_KEY, Collections.singletonList(group.getName()));
-                    logger.infof("Set the default organization for [%s] to [%s].", user.getUsername(), group.getName());
-                }
-        );
+        GroupModel group = groups.get(0);
+        user.setAttribute(DEFAULT_ORGANIZATION_ATTRIBUTE_KEY, List.of(group.getName()));
+        logger.infof("Set the default organization for [%s] to [%s].", user.getUsername(), group.getName());
     }
 
     // Boilerplate
+
+    static class MapperConfig {
+        Map<String, String> map;
+
+        MapperConfig(Map<String, String> map) {
+            this.map = map;
+        }
+
+        Stream<String> getIgnoreGroups() {
+            // Strings of type MULTIVALUED_STRING_TYPE are stored as a single string, delimited by "##".
+            String ignoreGroupRaw = map.get(IGNORE_GROUPS_PROPERTY);
+            String[] ignoreGroups = ignoreGroupRaw.split("##");
+            return Arrays.stream(ignoreGroups).filter(s -> !"".equals(s));
+        }
+    }
 
     @Override
     public String getDisplayCategory() {
@@ -78,9 +89,19 @@ public class DefaultOrganizationMapper extends AbstractClaimMapper {
                 "The mapper assumes that the group memberships are already up-to-date for the user (use other mappers first to set the group memberships).";
     }
 
+    public static String IGNORE_GROUPS_PROPERTY = "ignore_groups";
+
     @Override
     public List<ProviderConfigProperty> getConfigProperties() {
-        return new ArrayList<>();
+        List<ProviderConfigProperty> props = new ArrayList<>();
+
+        ProviderConfigProperty ignoreGroups = new ProviderConfigProperty(
+                IGNORE_GROUPS_PROPERTY, "Ignore groups", null, ProviderConfigProperty.MULTIVALUED_STRING_TYPE, null
+        );
+        ignoreGroups.setHelpText("The user might be in groups that aren't related to organizations.");
+
+        props.add(ignoreGroups);
+        return props;
     }
 
     @Override
