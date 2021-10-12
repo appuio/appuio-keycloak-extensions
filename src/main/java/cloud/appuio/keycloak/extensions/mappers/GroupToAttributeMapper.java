@@ -3,35 +3,37 @@ package cloud.appuio.keycloak.extensions.mappers;
 import org.jboss.logging.Logger;
 import org.keycloak.broker.oidc.KeycloakOIDCIdentityProviderFactory;
 import org.keycloak.broker.oidc.OIDCIdentityProviderFactory;
-import org.keycloak.broker.oidc.mappers.AbstractClaimMapper;
+import org.keycloak.broker.provider.AbstractIdentityProviderMapper;
 import org.keycloak.broker.provider.BrokeredIdentityContext;
 import org.keycloak.models.*;
 import org.keycloak.provider.ProviderConfigProperty;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class DefaultOrganizationMapper extends AbstractClaimMapper {
-    private static final Logger logger = Logger.getLogger(DefaultOrganizationMapper.class);
+public class GroupToAttributeMapper extends AbstractIdentityProviderMapper {
+    private static final Logger logger = Logger.getLogger(GroupToAttributeMapper.class);
 
     @Override
     public void importNewUser(KeycloakSession session, RealmModel realm, UserModel user, IdentityProviderMapperModel mapperModel, BrokeredIdentityContext context) {
-        super.importNewUser(session, realm, user, mapperModel, context);
-        this.assignDefaultOrganization(user, new MapperConfig(mapperModel.getConfig()));
+        this.assignGroupToAttribute(user, new MapperConfig(mapperModel.getConfig()));
     }
 
     @Override
     public void updateBrokeredUser(KeycloakSession session, RealmModel realm, UserModel user, IdentityProviderMapperModel mapperModel, BrokeredIdentityContext context) {
-        super.updateBrokeredUser(session, realm, user, mapperModel, context);
-        this.assignDefaultOrganization(user, new MapperConfig(mapperModel.getConfig()));
+        this.assignGroupToAttribute(user, new MapperConfig(mapperModel.getConfig()));
     }
 
-    void assignDefaultOrganization(UserModel user, MapperConfig config) {
+    void assignGroupToAttribute(UserModel user, MapperConfig config) {
         Set<String> defaultOrgAttribute = user.getAttributeStream(config.getTargetAttributeKey()).collect(Collectors.toSet());
         boolean isAlreadyDefined = defaultOrgAttribute.stream().anyMatch(value -> !"".equals(value));
         if (isAlreadyDefined) {
-            logger.debugf("Default organization is already set for user [%s]: [%s]",
+            logger.debugf("Attribute [%s] is already set for user [%s]: [%s]",
+                    config.getTargetAttributeKey(),
                     user.getUsername(),
                     String.join(", ", defaultOrgAttribute)
             );
@@ -43,14 +45,14 @@ public class DefaultOrganizationMapper extends AbstractClaimMapper {
                 .collect(Collectors.toList());
 
         if (filteredGroups.size() != 1) {
-            logger.warnf("Cannot determine default organization for [%s]. User is in following groups: [%s]. This may require manual action.",
+            logger.warnf("Cannot reduce group memberships to 1 group for [%s]. User is in following groups: [%s].",
                     user.getUsername(),
                     filteredGroups.stream().map(GroupModel::getName).collect(Collectors.joining(", ")));
             return;
         }
         GroupModel group = filteredGroups.get(0);
         user.setAttribute(config.getTargetAttributeKey(), List.of(group.getName()));
-        logger.infof("Set the default organization for [%s] to [%s].", user.getUsername(), group.getName());
+        logger.infof("Set the attribute [%s] for [%s] to [%s].", config.getTargetAttributeKey(), user.getUsername(), group.getName());
     }
 
     private boolean ignoreGroupNamesThatMatchRegex(MapperConfig config, GroupModel groupModel) {
@@ -70,14 +72,15 @@ public class DefaultOrganizationMapper extends AbstractClaimMapper {
 
     @Override
     public String getDisplayType() {
-        return "Default Organization to Attribute";
+        return "Group to Attribute";
     }
 
     @Override
     public String getHelpText() {
-        return "Guesses the 'primary' group membership of a user and updates the user's default-organization attribute if not present. " +
-                "It skips users where the default organization cannot be reliably determined. " +
-                "The mapper assumes that the group memberships are already up-to-date for the user (use other mappers first to set the group memberships).";
+        return "Guesses the 'primary' group membership of a user and updates a user's attribute if not present. " +
+                "It skips users where the group memberships cannot be reliably reduced to one entry. " +
+                "The intention is to configure the ignore groups pattern so that all irrelevant group have been ruled out. " +
+                "The mapper assumes that the group memberships are already up-to-date for the user and doesn't alter group memberships.";
     }
 
     public static final String IGNORE_GROUPS_PROPERTY = "ignore_groups";
@@ -114,7 +117,7 @@ public class DefaultOrganizationMapper extends AbstractClaimMapper {
 
         Stream<String> getIgnoreGroups() {
             // Strings of type MULTIVALUED_STRING_TYPE are stored as a single string, delimited by "##".
-            String ignoreGroupRaw = map.get(IGNORE_GROUPS_PROPERTY);
+            String ignoreGroupRaw = map.getOrDefault(IGNORE_GROUPS_PROPERTY, "");
             String[] ignoreGroups = ignoreGroupRaw.split("##");
             return Arrays.stream(ignoreGroups).filter(s -> !"".equals(s));
         }
@@ -134,7 +137,7 @@ public class DefaultOrganizationMapper extends AbstractClaimMapper {
 
     @Override
     public String getId() {
-        return "appuio-default-organization-mapper";
+        return "group-to-attribute-mapper";
     }
 
     @Override
