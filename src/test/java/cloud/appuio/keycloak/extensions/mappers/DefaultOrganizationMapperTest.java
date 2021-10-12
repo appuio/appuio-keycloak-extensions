@@ -16,7 +16,7 @@ class DefaultOrganizationMapperTest {
     void testAssignDefaultOrganization_GivenExistingAttributeValue_ThenSkipOverwrite() {
         UserModel user = Mockito.mock(UserModel.class);
 
-        Mockito.when(user.getAttributeStream(DefaultOrganizationMapper.DEFAULT_ORGANIZATION_ATTRIBUTE_KEY))
+        Mockito.when(user.getAttributeStream(DefaultOrganizationMapper.defaultTargetAttribute))
                 .thenReturn(Stream.of("sapphire-stars"));
 
         DefaultOrganizationMapper subject = new DefaultOrganizationMapper();
@@ -30,7 +30,7 @@ class DefaultOrganizationMapperTest {
         UserModel user = Mockito.mock(UserModel.class);
         GroupModel group = Mockito.mock(GroupModel.class);
 
-        Mockito.when(user.getAttributeStream(DefaultOrganizationMapper.DEFAULT_ORGANIZATION_ATTRIBUTE_KEY))
+        Mockito.when(user.getAttributeStream(Mockito.anyString()))
                 .thenReturn(Stream.of(""));
         Mockito.when(user.getGroupsStream())
                 .thenReturn(Stream.of(group));
@@ -41,7 +41,7 @@ class DefaultOrganizationMapperTest {
         setIgnoreGroups(config);
         subject.assignDefaultOrganization(user, config);
 
-        Mockito.verify(user).setAttribute(DefaultOrganizationMapper.DEFAULT_ORGANIZATION_ATTRIBUTE_KEY, List.of("sapphire-stars"));
+        Mockito.verify(user).setAttribute(DefaultOrganizationMapper.defaultTargetAttribute, List.of("sapphire-stars"));
     }
 
     @Test
@@ -49,7 +49,7 @@ class DefaultOrganizationMapperTest {
         UserModel user = Mockito.mock(UserModel.class);
         GroupModel group = Mockito.mock(GroupModel.class);
 
-        Mockito.when(user.getAttributeStream(DefaultOrganizationMapper.DEFAULT_ORGANIZATION_ATTRIBUTE_KEY))
+        Mockito.when(user.getAttributeStream(DefaultOrganizationMapper.defaultTargetAttribute))
                 .thenReturn(Stream.of(""));
         Mockito.when(user.getGroupsStream())
                 .thenReturn(Stream.of(group));
@@ -60,7 +60,7 @@ class DefaultOrganizationMapperTest {
         setIgnoreGroups(config, "sapphire.*");
         subject.assignDefaultOrganization(user, config);
 
-        Mockito.verify(user, Mockito.never()).setAttribute(DefaultOrganizationMapper.DEFAULT_ORGANIZATION_ATTRIBUTE_KEY, List.of("sapphire-stars"));
+        Mockito.verify(user, Mockito.never()).setAttribute(DefaultOrganizationMapper.defaultTargetAttribute, List.of("sapphire-stars"));
     }
 
     @Test
@@ -69,7 +69,7 @@ class DefaultOrganizationMapperTest {
         GroupModel group1 = Mockito.mock(GroupModel.class);
         GroupModel group2 = Mockito.mock(GroupModel.class);
 
-        Mockito.when(user.getAttributeStream(DefaultOrganizationMapper.DEFAULT_ORGANIZATION_ATTRIBUTE_KEY))
+        Mockito.when(user.getAttributeStream(DefaultOrganizationMapper.defaultTargetAttribute))
                 .thenReturn(Stream.empty());
         Mockito.when(user.getGroupsStream())
                 .thenReturn(Stream.of(group1, group2));

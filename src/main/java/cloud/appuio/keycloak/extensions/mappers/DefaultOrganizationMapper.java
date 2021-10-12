@@ -15,8 +15,6 @@ import java.util.stream.Stream;
 public class DefaultOrganizationMapper extends AbstractClaimMapper {
     private static final Logger logger = Logger.getLogger(DefaultOrganizationMapper.class);
 
-    public static final String DEFAULT_ORGANIZATION_ATTRIBUTE_KEY = "appuio.io/default-organization";
-
     @Override
     public void importNewUser(KeycloakSession session, RealmModel realm, UserModel user, IdentityProviderMapperModel mapperModel, BrokeredIdentityContext context) {
         super.importNewUser(session, realm, user, mapperModel, context);
@@ -30,7 +28,7 @@ public class DefaultOrganizationMapper extends AbstractClaimMapper {
     }
 
     void assignDefaultOrganization(UserModel user, MapperConfig config) {
-        Set<String> defaultOrgAttribute = user.getAttributeStream(DEFAULT_ORGANIZATION_ATTRIBUTE_KEY).collect(Collectors.toSet());
+        Set<String> defaultOrgAttribute = user.getAttributeStream(config.getTargetAttributeKey()).collect(Collectors.toSet());
         boolean isAlreadyDefined = defaultOrgAttribute.stream().anyMatch(value -> !"".equals(value));
         if (isAlreadyDefined) {
             logger.debugf("Default organization is already set for user [%s]: [%s]",
@@ -51,7 +49,7 @@ public class DefaultOrganizationMapper extends AbstractClaimMapper {
             return;
         }
         GroupModel group = filteredGroups.get(0);
-        user.setAttribute(DEFAULT_ORGANIZATION_ATTRIBUTE_KEY, List.of(group.getName()));
+        user.setAttribute(config.getTargetAttributeKey(), List.of(group.getName()));
         logger.infof("Set the default organization for [%s] to [%s].", user.getUsername(), group.getName());
     }
 
@@ -64,21 +62,6 @@ public class DefaultOrganizationMapper extends AbstractClaimMapper {
     }
 
     // Boilerplate
-
-    static class MapperConfig {
-        Map<String, String> map;
-
-        MapperConfig(Map<String, String> map) {
-            this.map = map;
-        }
-
-        Stream<String> getIgnoreGroups() {
-            // Strings of type MULTIVALUED_STRING_TYPE are stored as a single string, delimited by "##".
-            String ignoreGroupRaw = map.get(IGNORE_GROUPS_PROPERTY);
-            String[] ignoreGroups = ignoreGroupRaw.split("##");
-            return Arrays.stream(ignoreGroups).filter(s -> !"".equals(s));
-        }
-    }
 
     @Override
     public String getDisplayCategory() {
@@ -97,22 +80,48 @@ public class DefaultOrganizationMapper extends AbstractClaimMapper {
                 "The mapper assumes that the group memberships are already up-to-date for the user (use other mappers first to set the group memberships).";
     }
 
-    public static String IGNORE_GROUPS_PROPERTY = "ignore_groups";
+    public static final String IGNORE_GROUPS_PROPERTY = "ignore_groups";
+    public static final String TARGET_ATTRIBUTE_PROPERTY = "target_attribute";
+
+    static final String defaultTargetAttribute = "appuio.io/default-organization";
 
     @Override
     public List<ProviderConfigProperty> getConfigProperties() {
-        List<ProviderConfigProperty> props = new ArrayList<>();
-
         ProviderConfigProperty ignoreGroups = new ProviderConfigProperty(
                 IGNORE_GROUPS_PROPERTY, "Ignore groups", null, ProviderConfigProperty.MULTIVALUED_STRING_TYPE, null
         );
         ignoreGroups.setHelpText("The user might be in groups that you want to ignore. " +
                 "Each entry is a regex that is matched against each group name. " +
-                "If any pattern matches, the group is ignored. "+
+                "If any pattern matches, the group is ignored. " +
                 "NOTE: Do NOT specify 2 or more '#' in sequence per pattern.");
 
-        props.add(ignoreGroups);
-        return props;
+        ProviderConfigProperty targetAttribute = new ProviderConfigProperty(
+                TARGET_ATTRIBUTE_PROPERTY, "Target attribute", null, ProviderConfigProperty.STRING_TYPE, defaultTargetAttribute
+        );
+        targetAttribute.setHelpText("The user attribute key where the group name is stored in. " +
+                "If this attribute is already set with a non-empty string, it will not be updated. " +
+                "Defaults to '" + defaultTargetAttribute + "'.");
+
+        return List.of(ignoreGroups, targetAttribute);
+    }
+
+    static class MapperConfig {
+        Map<String, String> map;
+
+        MapperConfig(Map<String, String> map) {
+            this.map = map;
+        }
+
+        Stream<String> getIgnoreGroups() {
+            // Strings of type MULTIVALUED_STRING_TYPE are stored as a single string, delimited by "##".
+            String ignoreGroupRaw = map.get(IGNORE_GROUPS_PROPERTY);
+            String[] ignoreGroups = ignoreGroupRaw.split("##");
+            return Arrays.stream(ignoreGroups).filter(s -> !"".equals(s));
+        }
+
+        String getTargetAttributeKey() {
+            return map.getOrDefault(TARGET_ATTRIBUTE_PROPERTY, defaultTargetAttribute);
+        }
     }
 
     @Override
