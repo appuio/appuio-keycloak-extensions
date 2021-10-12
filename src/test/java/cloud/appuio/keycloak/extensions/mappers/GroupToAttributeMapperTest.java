@@ -54,13 +54,15 @@ class GroupToAttributeMapperTest {
         Mockito.when(user.getGroupsStream())
                 .thenReturn(Stream.of(group));
 
-        Mockito.when(group.getName()).thenReturn("sapphire-stars");
+        Mockito.when(group.getName()).thenReturn(" Sapphire Stars");
         var subject = new GroupToAttributeMapper();
         var config = new GroupToAttributeMapper.MapperConfig(new HashMap<>());
-        setIgnoreGroups(config, "sapphire.*");
+        config.map.put(GroupNameFormatter.TO_LOWERCASE_PROPERTY, "true");
+        config.map.put(GroupNameFormatter.TRIM_WHITESPACE_PROPERTY, "true");
+        setIgnoreGroups(config, "\\s*Sapphire.*");
         subject.assignGroupToAttribute(user, config);
 
-        Mockito.verify(user, Mockito.never()).setAttribute(GroupToAttributeMapper.defaultTargetAttribute, List.of("sapphire-stars"));
+        Mockito.verify(user, Mockito.never()).setAttribute(Mockito.anyString(), Mockito.anyList());
     }
 
     @Test

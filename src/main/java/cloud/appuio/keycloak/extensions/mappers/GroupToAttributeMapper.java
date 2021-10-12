@@ -11,7 +11,6 @@ import org.keycloak.provider.ProviderConfigProperty;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -39,12 +38,15 @@ public class GroupToAttributeMapper extends AbstractIdentityProviderMapper {
             );
             return;
         }
-        List<GroupModel> filteredGroups = user.getGroupsStream()
+        var formatter = new GroupNameFormatter()
+                .withToLowerCase(config.getToLowerCase())
+                .withTrimWhitespace(config.getTrimWhitespace())
+                .withTrimPrefix(config.getTrimPrefix());
         var filteredGroups = user.getGroupsStream()
                 .map(GroupModel::getName)
                 .filter(this::ignoreEmptyGroupNames)
-                .filter(groupModel -> ignoreGroupNamesThatMatchRegex(config, groupModel))
                 .filter(group -> ignoreGroupNamesThatMatchRegex(config, group))
+                .map(formatter::format)
                 .collect(Collectors.toList());
 
         if (filteredGroups.size() != 1) {
@@ -97,7 +99,7 @@ public class GroupToAttributeMapper extends AbstractIdentityProviderMapper {
                 IGNORE_GROUPS_PROPERTY, "Ignore groups", null, ProviderConfigProperty.MULTIVALUED_STRING_TYPE, null
         );
         ignoreGroups.setHelpText("The user might be in groups that you want to ignore. " +
-                "Each entry is a regex that is matched against each group name. " +
+                "Each entry is a regex that is matched against each group name before being trimmed or formatted. " +
                 "If any pattern matches, the group is ignored. " +
                 "NOTE: Do NOT specify 2 or more '#' in sequence per pattern.");
 
@@ -108,7 +110,7 @@ public class GroupToAttributeMapper extends AbstractIdentityProviderMapper {
                 "If this attribute is already set with a non-empty string, it will not be updated. " +
                 "Defaults to '" + defaultTargetAttribute + "'.");
 
-        return List.of(ignoreGroups, targetAttribute);
+        return List.of(ignoreGroups, targetAttribute, GroupNameFormatter.TO_LOWERCASE, GroupNameFormatter.TRIM_WHITESPACE, GroupNameFormatter.TRIM_PREFIX);
     }
 
     static class MapperConfig {
@@ -127,6 +129,18 @@ public class GroupToAttributeMapper extends AbstractIdentityProviderMapper {
 
         String getTargetAttributeKey() {
             return map.getOrDefault(TARGET_ATTRIBUTE_PROPERTY, defaultTargetAttribute);
+        }
+
+        String getTrimPrefix() {
+            return map.getOrDefault(GroupNameFormatter.TRIM_PREFIX_PROPERTY, "");
+        }
+
+        boolean getTrimWhitespace() {
+            return Boolean.parseBoolean(map.getOrDefault(GroupNameFormatter.TRIM_WHITESPACE_PROPERTY, String.valueOf(true)));
+        }
+
+        boolean getToLowerCase() {
+            return Boolean.parseBoolean(map.getOrDefault(GroupNameFormatter.TO_LOWERCASE_PROPERTY, String.valueOf(true)));
         }
     }
 
