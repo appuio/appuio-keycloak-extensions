@@ -142,10 +142,8 @@ public class ClaimToGroupMapper extends AbstractClaimMapper {
 
         if (isEmpty(groupClaimName)) return;
 
-        // get new groups
-        var groupMembershipObj = getClaimValue(context, groupClaimName);
-        // don't modify groups membership if the claim was not found
-        if (groupMembershipObj == null) {
+        var claim = ClaimListExtractor.extractClaim(context, groupClaimName);
+        if (claim.isEmpty()) {
             logger.debugf(
                     "Realm [%s], IdP [%s]: no group claim (claim name: [%s]) for user [%s], ignoring...",
                     realm.getName(),
@@ -172,11 +170,10 @@ public class ClaimToGroupMapper extends AbstractClaimMapper {
                 currentGroups.stream().map(GroupModel::getName).collect(Collectors.joining(",")));
 
         // map and filter the groups by name
-        var groupNamesFromClaim =
-                this.toGroupListFromClaim(groupMembershipObj)
-                        .filter(t -> isEmpty(containsText) || t.contains(containsText))
-                        .map(this::replaceInvalidCharacters)
-                        .collect(Collectors.toSet());
+        var groupNamesFromClaim = claim.get().stream()
+                .filter(t -> isEmpty(containsText) || t.contains(containsText))
+                .map(this::replaceInvalidCharacters)
+                .collect(Collectors.toSet());
 
         var newRealmGroups = filterNewRealmGroups(realm, groupNamesFromClaim, createGroups);
 
@@ -196,21 +193,6 @@ public class ClaimToGroupMapper extends AbstractClaimMapper {
         logger.debugf(
                 "Realm [%s], IdP [%s]: finishing mapping groups for user [%s]",
                 realm.getName(), mapperModel.getIdentityProviderAlias(), user.getUsername());
-    }
-
-    private Stream<String> toGroupListFromClaim(Object newGroupsObj) {
-        // convert to string list if not list
-        if (!List.class.isAssignableFrom(newGroupsObj.getClass())) {
-            List<String> newList = new ArrayList<>();
-            newList.add(newGroupsObj.toString());
-            return newList.stream();
-        }
-        return this.castToList(newGroupsObj).stream();
-    }
-
-    @SuppressWarnings("unchecked")
-    private List<String> castToList(Object newGroupsObj) {
-        return (List<String>) newGroupsObj;
     }
 
     String replaceInvalidCharacters(String groupName) {
