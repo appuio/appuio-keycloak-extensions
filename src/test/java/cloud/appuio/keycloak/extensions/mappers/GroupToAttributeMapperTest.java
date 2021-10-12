@@ -14,12 +14,12 @@ class GroupToAttributeMapperTest {
 
     @Test
     void testAssignGroupToAttribute_GivenExistingAttributeValue_ThenSkipOverwrite() {
-        UserModel user = Mockito.mock(UserModel.class);
+        var user = Mockito.mock(UserModel.class);
 
         Mockito.when(user.getAttributeStream(GroupToAttributeMapper.defaultTargetAttribute))
                 .thenReturn(Stream.of("sapphire-stars"));
 
-        GroupToAttributeMapper subject = new GroupToAttributeMapper();
+        var subject = new GroupToAttributeMapper();
         subject.assignGroupToAttribute(user, new GroupToAttributeMapper.MapperConfig(Collections.emptyMap()));
 
         Mockito.verify(user, Mockito.never()).setAttribute(Mockito.anyString(), Mockito.anyList());
@@ -27,8 +27,8 @@ class GroupToAttributeMapperTest {
 
     @Test
     void testAssignGroupToAttribute_GivenNonExistingAttributeValue_ThenSetAttribute() {
-        UserModel user = Mockito.mock(UserModel.class);
-        GroupModel group = Mockito.mock(GroupModel.class);
+        var user = Mockito.mock(UserModel.class);
+        var group = Mockito.mock(GroupModel.class);
 
         Mockito.when(user.getAttributeStream(Mockito.anyString()))
                 .thenReturn(Stream.of(""));
@@ -36,8 +36,8 @@ class GroupToAttributeMapperTest {
                 .thenReturn(Stream.of(group));
 
         Mockito.when(group.getName()).thenReturn("sapphire-stars");
-        GroupToAttributeMapper subject = new GroupToAttributeMapper();
-        GroupToAttributeMapper.MapperConfig config = new GroupToAttributeMapper.MapperConfig(new HashMap<>());
+        var subject = new GroupToAttributeMapper();
+        var config = new GroupToAttributeMapper.MapperConfig(new HashMap<>());
         setIgnoreGroups(config);
         subject.assignGroupToAttribute(user, config);
 
@@ -46,8 +46,8 @@ class GroupToAttributeMapperTest {
 
     @Test
     void testAssignGroupToAttribute_GivenNonExistingAttributeValue_WhenGroupIgnore_ThenSkipAttribute() {
-        UserModel user = Mockito.mock(UserModel.class);
-        GroupModel group = Mockito.mock(GroupModel.class);
+        var user = Mockito.mock(UserModel.class);
+        var group = Mockito.mock(GroupModel.class);
 
         Mockito.when(user.getAttributeStream(GroupToAttributeMapper.defaultTargetAttribute))
                 .thenReturn(Stream.of(""));
@@ -55,8 +55,8 @@ class GroupToAttributeMapperTest {
                 .thenReturn(Stream.of(group));
 
         Mockito.when(group.getName()).thenReturn("sapphire-stars");
-        GroupToAttributeMapper subject = new GroupToAttributeMapper();
-        GroupToAttributeMapper.MapperConfig config = new GroupToAttributeMapper.MapperConfig(new HashMap<>());
+        var subject = new GroupToAttributeMapper();
+        var config = new GroupToAttributeMapper.MapperConfig(new HashMap<>());
         setIgnoreGroups(config, "sapphire.*");
         subject.assignGroupToAttribute(user, config);
 
@@ -65,9 +65,9 @@ class GroupToAttributeMapperTest {
 
     @Test
     void testAssignGroupToAttribute_GivenMultipleGroups_ThenSkipUpdate() {
-        UserModel user = Mockito.mock(UserModel.class);
-        GroupModel group1 = Mockito.mock(GroupModel.class);
-        GroupModel group2 = Mockito.mock(GroupModel.class);
+        var user = Mockito.mock(UserModel.class);
+        var group1 = Mockito.mock(GroupModel.class);
+        var group2 = Mockito.mock(GroupModel.class);
 
         Mockito.when(user.getAttributeStream(GroupToAttributeMapper.defaultTargetAttribute))
                 .thenReturn(Stream.empty());
@@ -77,8 +77,8 @@ class GroupToAttributeMapperTest {
         Mockito.when(group1.getName()).thenReturn("sapphire-stars");
         Mockito.when(group2.getName()).thenReturn("rose-canyon");
 
-        GroupToAttributeMapper subject = new GroupToAttributeMapper();
-        GroupToAttributeMapper.MapperConfig config = new GroupToAttributeMapper.MapperConfig(new HashMap<>());
+        var subject = new GroupToAttributeMapper();
+        var config = new GroupToAttributeMapper.MapperConfig(new HashMap<>());
         setIgnoreGroups(config);
         subject.assignGroupToAttribute(user, config);
 

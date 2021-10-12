@@ -29,8 +29,8 @@ public class GroupToAttributeMapper extends AbstractIdentityProviderMapper {
     }
 
     void assignGroupToAttribute(UserModel user, MapperConfig config) {
-        Set<String> defaultOrgAttribute = user.getAttributeStream(config.getTargetAttributeKey()).collect(Collectors.toSet());
-        boolean isAlreadyDefined = defaultOrgAttribute.stream().anyMatch(value -> !"".equals(value));
+        var defaultOrgAttribute = user.getAttributeStream(config.getTargetAttributeKey()).collect(Collectors.toSet());
+        var isAlreadyDefined = defaultOrgAttribute.stream().anyMatch(value -> !"".equals(value));
         if (isAlreadyDefined) {
             logger.debugf("Attribute [%s] is already set for user [%s]: [%s]",
                     config.getTargetAttributeKey(),
@@ -40,27 +40,30 @@ public class GroupToAttributeMapper extends AbstractIdentityProviderMapper {
             return;
         }
         List<GroupModel> filteredGroups = user.getGroupsStream()
+        var filteredGroups = user.getGroupsStream()
+                .map(GroupModel::getName)
                 .filter(this::ignoreEmptyGroupNames)
                 .filter(groupModel -> ignoreGroupNamesThatMatchRegex(config, groupModel))
+                .filter(group -> ignoreGroupNamesThatMatchRegex(config, group))
                 .collect(Collectors.toList());
 
         if (filteredGroups.size() != 1) {
             logger.warnf("Cannot reduce group memberships to 1 group for [%s]. User is in following groups: [%s].",
                     user.getUsername(),
-                    filteredGroups.stream().map(GroupModel::getName).collect(Collectors.joining(", ")));
+                    String.join(", ", filteredGroups));
             return;
         }
-        GroupModel group = filteredGroups.get(0);
-        user.setAttribute(config.getTargetAttributeKey(), List.of(group.getName()));
-        logger.infof("Set the attribute [%s] for [%s] to [%s].", config.getTargetAttributeKey(), user.getUsername(), group.getName());
+        var groupName = filteredGroups.get(0);
+        user.setAttribute(config.getTargetAttributeKey(), List.of(groupName));
+        logger.infof("Set the attribute [%s] for [%s] to [%s].", config.getTargetAttributeKey(), user.getUsername(), groupName);
     }
 
-    private boolean ignoreGroupNamesThatMatchRegex(MapperConfig config, GroupModel groupModel) {
-        return config.getIgnoreGroups().noneMatch(toIgnore -> groupModel.getName().matches(toIgnore));
+    private boolean ignoreGroupNamesThatMatchRegex(MapperConfig config, String groupModel) {
+        return config.getIgnoreGroups().noneMatch(groupModel::matches);
     }
 
-    private boolean ignoreEmptyGroupNames(GroupModel group) {
-        return !"".equals(group.getName());
+    private boolean ignoreEmptyGroupNames(String group) {
+        return !"".equals(group);
     }
 
     // Boilerplate
@@ -90,7 +93,7 @@ public class GroupToAttributeMapper extends AbstractIdentityProviderMapper {
 
     @Override
     public List<ProviderConfigProperty> getConfigProperties() {
-        ProviderConfigProperty ignoreGroups = new ProviderConfigProperty(
+        var ignoreGroups = new ProviderConfigProperty(
                 IGNORE_GROUPS_PROPERTY, "Ignore groups", null, ProviderConfigProperty.MULTIVALUED_STRING_TYPE, null
         );
         ignoreGroups.setHelpText("The user might be in groups that you want to ignore. " +
@@ -98,7 +101,7 @@ public class GroupToAttributeMapper extends AbstractIdentityProviderMapper {
                 "If any pattern matches, the group is ignored. " +
                 "NOTE: Do NOT specify 2 or more '#' in sequence per pattern.");
 
-        ProviderConfigProperty targetAttribute = new ProviderConfigProperty(
+        var targetAttribute = new ProviderConfigProperty(
                 TARGET_ATTRIBUTE_PROPERTY, "Target attribute", null, ProviderConfigProperty.STRING_TYPE, defaultTargetAttribute
         );
         targetAttribute.setHelpText("The user attribute key where the group name is stored in. " +

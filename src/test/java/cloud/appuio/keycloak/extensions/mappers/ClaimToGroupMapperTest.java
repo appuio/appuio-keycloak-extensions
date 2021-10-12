@@ -14,10 +14,10 @@ class ClaimToGroupMapperTest {
 
     @Test
     void testReplaceInvalidCharacters() {
-        String source = "/LDAP/some group";
-        String target = "LDAP-some group";
+        var source = "/LDAP/some group";
+        var target = "LDAP-some group";
 
-        String result = new ClaimToGroupMapper().replaceInvalidCharacters(source);
+        var result = new ClaimToGroupMapper().replaceInvalidCharacters(source);
 
         assertThat(result).isEqualTo(target);
     }
@@ -26,16 +26,16 @@ class ClaimToGroupMapperTest {
     void testFindGroupsToBeAdded() {
         Set<GroupModel> currentGroups = new HashSet<>();
 
-        GroupModel group1 = Mockito.mock(GroupModel.class);
+        var group1 = Mockito.mock(GroupModel.class);
         currentGroups.add(group1);
-        GroupModel group2 = Mockito.mock(GroupModel.class);
+        var group2 = Mockito.mock(GroupModel.class);
         currentGroups.add(group2);
 
-        GroupModel newGroup = Mockito.mock(GroupModel.class);
+        var newGroup = Mockito.mock(GroupModel.class);
         Set<GroupModel> newGroups = new HashSet<>();
         newGroups.add(newGroup);
 
-        Stream<GroupModel> result = ClaimToGroupMapper.findGroupsToBeAdded(currentGroups, newGroups);
+        var result = ClaimToGroupMapper.findGroupsToBeAdded(currentGroups, newGroups);
 
         assertThat(result).containsOnly(newGroup);
     }

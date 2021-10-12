@@ -44,7 +44,7 @@ public class ClaimToGroupMapper extends AbstractClaimMapper {
     private static final String CREATE_GROUPS = "create_groups";
 
     static {
-        ProviderConfigProperty claimProperty = new ProviderConfigProperty();
+        var claimProperty = new ProviderConfigProperty();
         claimProperty.setName(CLAIM);
         claimProperty.setLabel("Claim");
         claimProperty.setHelpText(
@@ -54,7 +54,7 @@ public class ClaimToGroupMapper extends AbstractClaimMapper {
         claimProperty.setType(ProviderConfigProperty.STRING_TYPE);
         CONFIG_PROPERTIES.add(claimProperty);
 
-        ProviderConfigProperty containsTextProperty = new ProviderConfigProperty();
+        var containsTextProperty = new ProviderConfigProperty();
         containsTextProperty.setName(CONTAINS_TEXT);
         containsTextProperty.setLabel("Contains text");
         containsTextProperty.setHelpText(
@@ -62,7 +62,7 @@ public class ClaimToGroupMapper extends AbstractClaimMapper {
         containsTextProperty.setType(ProviderConfigProperty.STRING_TYPE);
         CONFIG_PROPERTIES.add(containsTextProperty);
 
-        ProviderConfigProperty createGroupsProperty = new ProviderConfigProperty();
+        var createGroupsProperty = new ProviderConfigProperty();
         createGroupsProperty.setName(CREATE_GROUPS);
         createGroupsProperty.setLabel("Create groups if not exists");
         createGroupsProperty.setHelpText(
@@ -136,14 +136,14 @@ public class ClaimToGroupMapper extends AbstractClaimMapper {
             BrokeredIdentityContext context) {
 
         // check configurations
-        String groupClaimName = mapperModel.getConfig().get(CLAIM);
-        String containsText = mapperModel.getConfig().get(CONTAINS_TEXT);
-        Boolean createGroups = Boolean.valueOf(mapperModel.getConfig().get(CREATE_GROUPS));
+        var groupClaimName = mapperModel.getConfig().get(CLAIM);
+        var containsText = mapperModel.getConfig().get(CONTAINS_TEXT);
+        var createGroups = Boolean.valueOf(mapperModel.getConfig().get(CREATE_GROUPS));
 
         if (isEmpty(groupClaimName)) return;
 
         // get new groups
-        Object groupMembershipObj = getClaimValue(context, groupClaimName);
+        var groupMembershipObj = getClaimValue(context, groupClaimName);
         // don't modify groups membership if the claim was not found
         if (groupMembershipObj == null) {
             logger.debugf(
@@ -160,7 +160,7 @@ public class ClaimToGroupMapper extends AbstractClaimMapper {
                 realm.getName(), mapperModel.getIdentityProviderAlias(), user.getUsername());
 
         // get user current groups
-        Set<GroupModel> currentGroups = user.getGroupsStream()
+        var currentGroups = user.getGroupsStream()
                 .filter(g -> isEmpty(containsText) || g.getName().contains(containsText))
                 .collect(Collectors.toSet());
 
@@ -172,13 +172,13 @@ public class ClaimToGroupMapper extends AbstractClaimMapper {
                 currentGroups.stream().map(GroupModel::getName).collect(Collectors.joining(",")));
 
         // map and filter the groups by name
-        Set<String> groupNamesFromClaim =
+        var groupNamesFromClaim =
                 this.toGroupListFromClaim(groupMembershipObj)
                         .filter(t -> isEmpty(containsText) || t.contains(containsText))
                         .map(this::replaceInvalidCharacters)
                         .collect(Collectors.toSet());
 
-        Set<GroupModel> newRealmGroups = filterNewRealmGroups(realm, groupNamesFromClaim, createGroups);
+        var newRealmGroups = filterNewRealmGroups(realm, groupNamesFromClaim, createGroups);
 
         logger.debugf(
                 "Realm [%s], IdP [%s]: new groups for user [%s]: %s",
@@ -247,7 +247,7 @@ public class ClaimToGroupMapper extends AbstractClaimMapper {
     private void createAndJoinGroup(RealmModel realm, Set<GroupModel> groups, String groupName) {
         logger.debugf("Realm [%s]: creating group [%s]", realm.getName(), groupName);
 
-        GroupModel newGroup = realm.createGroup(groupName);
+        var newGroup = realm.createGroup(groupName);
         groups.add(newGroup);
     }
 
@@ -260,7 +260,7 @@ public class ClaimToGroupMapper extends AbstractClaimMapper {
      */
     static Stream<GroupModel> findGroupsToBeRemoved(
             Set<GroupModel> currentGroups, Set<GroupModel> newGroups) {
-        Set<GroupModel> resultSet = new HashSet<>(currentGroups);
+        var resultSet = new HashSet<>(currentGroups);
         resultSet.removeAll(newGroups);
         return resultSet.stream();
     }
@@ -270,7 +270,7 @@ public class ClaimToGroupMapper extends AbstractClaimMapper {
      */
     static Stream<GroupModel> findGroupsToBeAdded(
             Set<GroupModel> currentGroups, Set<GroupModel> newGroups) {
-        Set<GroupModel> resultSet = new HashSet<>(newGroups);
+        var resultSet = new HashSet<>(newGroups);
 
         // (New - Current) will result in a set with the groups where the user will be added
         resultSet.removeAll(currentGroups);
