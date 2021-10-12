@@ -29,4 +29,14 @@ public class DefaultOrganizationMapperConfigTest {
 
         assertThat(ignoreGroupList).containsExactly("sapphire-stars");
     }
+
+    @Test
+    void testGetIgnoreGroupsList_GivenEmptyEntry_ThenReturnNothing() {
+        Map<String, String> map = Collections.singletonMap(DefaultOrganizationMapper.IGNORE_GROUPS_PROPERTY, "");
+        DefaultOrganizationMapper.MapperConfig config = new DefaultOrganizationMapper.MapperConfig(map);
+
+        Stream<String> ignoreGroupList = config.getIgnoreGroups();
+
+        assertThat(ignoreGroupList).isEmpty();
+    }
 }

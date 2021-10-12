@@ -106,7 +106,10 @@ public class DefaultOrganizationMapper extends AbstractClaimMapper {
         ProviderConfigProperty ignoreGroups = new ProviderConfigProperty(
                 IGNORE_GROUPS_PROPERTY, "Ignore groups", null, ProviderConfigProperty.MULTIVALUED_STRING_TYPE, null
         );
-        ignoreGroups.setHelpText("The user might be in groups that aren't related to organizations.");
+        ignoreGroups.setHelpText("The user might be in groups that you want to ignore. " +
+                "Each entry is a regex that is matched against each group name. " +
+                "If any pattern matches, the group is ignored. "+
+                "NOTE: Do NOT specify 2 or more '#' in sequence per pattern.");
 
         props.add(ignoreGroups);
         return props;
