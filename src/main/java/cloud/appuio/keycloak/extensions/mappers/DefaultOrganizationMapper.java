@@ -39,20 +39,28 @@ public class DefaultOrganizationMapper extends AbstractClaimMapper {
             );
             return;
         }
-        List<GroupModel> groups = user.getGroupsStream()
-                .filter(group -> !"".equals(group.getName()))
-                .filter(groupModel -> config.getIgnoreGroups().noneMatch(toIgnore -> groupModel.getName().matches(toIgnore)))
+        List<GroupModel> filteredGroups = user.getGroupsStream()
+                .filter(this::ignoreEmptyGroupNames)
+                .filter(groupModel -> ignoreGroupNamesThatMatchRegex(config, groupModel))
                 .collect(Collectors.toList());
 
-        if (groups.size() != 1) {
+        if (filteredGroups.size() != 1) {
             logger.warnf("Cannot determine default organization for [%s]. User is in following groups: [%s]. This may require manual action.",
                     user.getUsername(),
-                    groups.stream().map(GroupModel::getName).collect(Collectors.joining(", ")));
+                    filteredGroups.stream().map(GroupModel::getName).collect(Collectors.joining(", ")));
             return;
         }
-        GroupModel group = groups.get(0);
+        GroupModel group = filteredGroups.get(0);
         user.setAttribute(DEFAULT_ORGANIZATION_ATTRIBUTE_KEY, List.of(group.getName()));
         logger.infof("Set the default organization for [%s] to [%s].", user.getUsername(), group.getName());
+    }
+
+    private boolean ignoreGroupNamesThatMatchRegex(MapperConfig config, GroupModel groupModel) {
+        return config.getIgnoreGroups().noneMatch(toIgnore -> groupModel.getName().matches(toIgnore));
+    }
+
+    private boolean ignoreEmptyGroupNames(GroupModel group) {
+        return !"".equals(group.getName());
     }
 
     // Boilerplate
