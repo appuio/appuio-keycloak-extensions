@@ -32,6 +32,21 @@ class ClaimToAttributeMapperTest {
     }
 
     @Test
+    void testAssignGroupToAttribute_GivenExistingEmptyAttribute_WhenOverwriteDisabled_ThenSet() {
+        var user = Mockito.mock(UserModel.class);
+
+        Mockito.when(user.getAttributeStream(attributeKey))
+                .thenReturn(Stream.of(""));
+
+        var subject = new ClaimToAttributeMapper();
+        var config = newMapperConfig();
+        setIgnoreGroups(config);
+        subject.assignClaimToAttribute(realmName, idpAlias, user, List.of("sapphire-stars"), config);
+
+        Mockito.verify(user).setAttribute(attributeKey, List.of("sapphire-stars"));
+    }
+
+    @Test
     void testAssignGroupToAttribute_GivenExistingAttributeValue_WhenOverwriteEnabled_ThenOverwrite() {
         var user = Mockito.mock(UserModel.class);
 

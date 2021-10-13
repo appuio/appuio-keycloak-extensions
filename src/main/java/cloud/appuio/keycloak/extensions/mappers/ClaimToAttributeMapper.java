@@ -127,14 +127,14 @@ public class ClaimToAttributeMapper extends AbstractClaimMapper {
                 TARGET_ATTRIBUTE_PROPERTY, "Target attribute", null, ProviderConfigProperty.STRING_TYPE, ""
         );
         targetAttribute.setHelpText("**REQUIRED** The user attribute key which the mapper should update. " +
-                "If this attribute is already set with a non-empty string, it will not be updated.");
+                "If the attribute is already present but with an empty string, it will be updated.");
 
         var overwriteAttribute = new ProviderConfigProperty(
                 OVERWRITE_ATTRIBUTE_PROPERTY, "Overwrite existing attribute value", null, ProviderConfigProperty.BOOLEAN_TYPE, false
         );
         overwriteAttribute.setHelpText("Overwrite the value of the target attribute even if it is already set.");
 
-        return List.of(targetAttribute, ignoreEntries, overwriteAttribute, GroupNameFormatter.TO_LOWERCASE, GroupNameFormatter.TRIM_WHITESPACE, GroupNameFormatter.TRIM_PREFIX);
+        return List.of(targetAttribute, overwriteAttribute, ignoreEntries, GroupNameFormatter.TO_LOWERCASE, GroupNameFormatter.TRIM_WHITESPACE, GroupNameFormatter.TRIM_PREFIX);
     }
 
     static class MapperConfig {
