@@ -47,9 +47,9 @@ public class ClaimToAttributeMapper extends AbstractClaimMapper {
 
     void assignClaimToAttribute(String realmName, String identityProviderAlias, UserModel user, List<String> claimEntries, MapperConfig config) {
         var attributes = user.getAttributeStream(config.getTargetAttributeKey()).collect(Collectors.toSet());
+        var isAttributeAlreadyDefined = attributes.stream().anyMatch(value -> !"".equals(value));
         if (!config.enabledAttributeOverwrite()) {
-            var isAlreadyDefined = attributes.stream().anyMatch(value -> !"".equals(value));
-            if (isAlreadyDefined) {
+            if (isAttributeAlreadyDefined) {
                 logger.debugf("Realm [%s], IdP [%s]: Attribute [%s] is already set for user [%s]: [%s]",
                         realmName,
                         identityProviderAlias,
@@ -71,14 +71,16 @@ public class ClaimToAttributeMapper extends AbstractClaimMapper {
                 .collect(Collectors.toList());
 
         if (filteredGroups.size() != 1) {
-            logger.warnf("Realm [%s], IdP [%s]: Cannot reduce claim entries list to one entry for [%s]. Claim has following entries after reduction: [%s].",
-                    user.getUsername(),
-                    String.join(", ", filteredGroups));
+            if (!isAttributeAlreadyDefined) {
+                logger.infof("Realm [%s], IdP [%s]: Cannot reduce claim entries list to one entry for [%s]. Claim has following entries after reduction: [%s].",
+                        user.getUsername(),
+                        String.join(", ", filteredGroups));
+            }
             return;
         }
         var groupName = filteredGroups.get(0);
         user.setAttribute(config.getTargetAttributeKey(), List.of(groupName));
-        logger.infof("Realm [%s], IdP [%s]: Set the attribute [%s] for [%s] to [%s].", config.getTargetAttributeKey(), user.getUsername(), groupName);
+        logger.debugf("Realm [%s], IdP [%s]: Set the attribute [%s] for [%s] to [%s].", config.getTargetAttributeKey(), user.getUsername(), groupName);
     }
 
     private boolean ignoreEntriesThatMatchRegex(MapperConfig config, String groupModel) {
