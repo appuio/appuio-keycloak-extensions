@@ -47,20 +47,22 @@ public class ClaimToAttributeMapper extends AbstractClaimMapper {
 
     void assignClaimToAttribute(String realmName, String identityProviderAlias, UserModel user, List<String> claimEntries, MapperConfig config) {
         var attributes = user.getAttributeStream(config.getTargetAttributeKey()).collect(Collectors.toSet());
-        var isAlreadyDefined = attributes.stream().anyMatch(value -> !"".equals(value));
-        if (isAlreadyDefined) {
-            logger.debugf("Realm [%s], IdP [%s]: Attribute [%s] is already set for user [%s]: [%s]",
-                    realmName,
-                    identityProviderAlias,
-                    config.getTargetAttributeKey(),
-                    user.getUsername(),
-                    String.join(", ", attributes)
-            );
-            return;
+        if (!config.enabledAttributeOverwrite()) {
+            var isAlreadyDefined = attributes.stream().anyMatch(value -> !"".equals(value));
+            if (isAlreadyDefined) {
+                logger.debugf("Realm [%s], IdP [%s]: Attribute [%s] is already set for user [%s]: [%s]",
+                        realmName,
+                        identityProviderAlias,
+                        config.getTargetAttributeKey(),
+                        user.getUsername(),
+                        String.join(", ", attributes)
+                );
+                return;
+            }
         }
         var formatter = new GroupNameFormatter()
-                .withToLowerCase(config.getToLowerCase())
-                .withTrimWhitespace(config.getTrimWhitespace())
+                .withToLowerCase(config.enabledToLowerCase())
+                .withTrimWhitespace(config.enabledTrimWhitespace())
                 .withTrimPrefix(config.getTrimPrefix());
         var filteredGroups = claimEntries.stream()
                 .filter(this::ignoreEmptyEntries)
@@ -109,6 +111,7 @@ public class ClaimToAttributeMapper extends AbstractClaimMapper {
 
     public static final String IGNORE_ENTRIES_PROPERTY = "ignore_entries";
     public static final String TARGET_ATTRIBUTE_PROPERTY = "target_attribute";
+    public static final String OVERWRITE_ATTRIBUTE_PROPERTY = "overwrite_attribute";
 
     @Override
     public List<ProviderConfigProperty> getConfigProperties() {
@@ -126,7 +129,12 @@ public class ClaimToAttributeMapper extends AbstractClaimMapper {
         targetAttribute.setHelpText("**REQUIRED** The user attribute key which the mapper should update. " +
                 "If this attribute is already set with a non-empty string, it will not be updated.");
 
-        return List.of(targetAttribute, ignoreEntries, GroupNameFormatter.TO_LOWERCASE, GroupNameFormatter.TRIM_WHITESPACE, GroupNameFormatter.TRIM_PREFIX);
+        var overwriteAttribute = new ProviderConfigProperty(
+                OVERWRITE_ATTRIBUTE_PROPERTY, "Overwrite existing attribute value", null, ProviderConfigProperty.BOOLEAN_TYPE, false
+        );
+        overwriteAttribute.setHelpText("Overwrite the value of the target attribute even if it is already set.");
+
+        return List.of(targetAttribute, ignoreEntries, overwriteAttribute, GroupNameFormatter.TO_LOWERCASE, GroupNameFormatter.TRIM_WHITESPACE, GroupNameFormatter.TRIM_PREFIX);
     }
 
     static class MapperConfig {
@@ -150,16 +158,20 @@ public class ClaimToAttributeMapper extends AbstractClaimMapper {
             return map.getOrDefault(GroupNameFormatter.TRIM_PREFIX_PROPERTY, "");
         }
 
-        boolean getTrimWhitespace() {
+        boolean enabledTrimWhitespace() {
             return Boolean.parseBoolean(map.getOrDefault(GroupNameFormatter.TRIM_WHITESPACE_PROPERTY, String.valueOf(true)));
         }
 
-        boolean getToLowerCase() {
+        boolean enabledToLowerCase() {
             return Boolean.parseBoolean(map.getOrDefault(GroupNameFormatter.TO_LOWERCASE_PROPERTY, String.valueOf(true)));
         }
 
         String getClaimName() {
             return map.getOrDefault(CLAIM, "");
+        }
+
+        boolean enabledAttributeOverwrite() {
+            return Boolean.parseBoolean(map.getOrDefault(OVERWRITE_ATTRIBUTE_PROPERTY, String.valueOf(false)));
         }
     }
 

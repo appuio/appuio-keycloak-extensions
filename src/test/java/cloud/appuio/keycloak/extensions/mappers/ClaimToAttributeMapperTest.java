@@ -17,7 +17,7 @@ class ClaimToAttributeMapperTest {
     String attributeKey = "attribute";
 
     @Test
-    void testAssignGroupToAttribute_GivenExistingAttributeValue_ThenSkipOverwrite() {
+    void testAssignGroupToAttribute_GivenExistingAttributeValue_WhenOverwriteDisabled_ThenSkipOverwrite() {
         var user = Mockito.mock(UserModel.class);
 
         Mockito.when(user.getAttributeStream(attributeKey))
@@ -29,6 +29,22 @@ class ClaimToAttributeMapperTest {
         subject.assignClaimToAttribute(realmName, idpAlias, user, Collections.emptyList(), config);
 
         Mockito.verify(user, Mockito.never()).setAttribute(Mockito.anyString(), Mockito.anyList());
+    }
+
+    @Test
+    void testAssignGroupToAttribute_GivenExistingAttributeValue_WhenOverwriteEnabled_ThenOverwrite() {
+        var user = Mockito.mock(UserModel.class);
+
+        Mockito.when(user.getAttributeStream(attributeKey))
+                .thenReturn(Stream.of("sapphire-stars"));
+
+        var subject = new ClaimToAttributeMapper();
+        var config = newMapperConfig();
+        setIgnoreGroups(config);
+        setOverwriteEnabled(config);
+        subject.assignClaimToAttribute(realmName, idpAlias, user, List.of("rose-canyon"), config);
+
+        Mockito.verify(user).setAttribute(attributeKey, List.of("rose-canyon"));
     }
 
     @Test
@@ -88,6 +104,10 @@ class ClaimToAttributeMapperTest {
 
     private void setWhiteSpace(ClaimToAttributeMapper.MapperConfig mapperConfig) {
         mapperConfig.map.put(GroupNameFormatter.TRIM_WHITESPACE_PROPERTY, Boolean.toString(true));
+    }
+
+    private void setOverwriteEnabled(ClaimToAttributeMapper.MapperConfig mapperConfig) {
+        mapperConfig.map.put(ClaimToAttributeMapper.OVERWRITE_ATTRIBUTE_PROPERTY, Boolean.toString(true));
     }
 
     private ClaimToAttributeMapper.MapperConfig newMapperConfig() {
