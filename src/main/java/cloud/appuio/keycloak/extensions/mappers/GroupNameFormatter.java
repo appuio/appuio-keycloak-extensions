@@ -14,11 +14,9 @@ public class GroupNameFormatter {
     String format(String input) {
         if (input == null) return "";
         var s = input;
-        if (!trimPrefix.equals("")) {
-            s = s.replaceFirst(trimPrefix, "");
-        }
+        s = s.replaceFirst(trimPrefix, "");
         if (trimWhitespace) {
-            s = s.trim().replaceAll("\\s+", "-").replaceAll("(--)+", "-");
+            s = s.trim().replaceAll("\\s+", "-").replaceAll("-+", "-");
         }
         if (toLowerCase) {
             s = s.toLowerCase();

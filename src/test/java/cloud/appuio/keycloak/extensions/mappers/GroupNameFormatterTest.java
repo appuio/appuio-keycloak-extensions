@@ -28,7 +28,7 @@ class GroupNameFormatterTest {
     void testFormat_GivenInputWithWhitespaces_WhenContainsDashesInTheMiddle_ThenExpectReplaceWithSingleDashes() {
         var subject = new GroupNameFormatter().withTrimWhitespace(true);
 
-        var result = subject.format("\t  sapphire-- -stars  \n");
+        var result = subject.format("\t  sapphire -- -stars  \n");
 
         assertThat(result).isEqualTo("sapphire-stars");
     }
