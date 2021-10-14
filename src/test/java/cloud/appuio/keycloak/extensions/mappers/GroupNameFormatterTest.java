@@ -43,7 +43,7 @@ class GroupNameFormatterTest {
     }
 
     @Test
-    void testFormat_GivenInputWithLowerCase_ThenExpectLowercaseName() {
+    void testFormat_GivenInputWithMixedCase_ThenExpectLowercaseName() {
         var subject = new GroupNameFormatter().withToLowerCase(true);
 
         var result = subject.format("SAPPHIRE StaRs");

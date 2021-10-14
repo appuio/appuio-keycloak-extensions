@@ -17,7 +17,7 @@ class ClaimToAttributeMapperTest {
     String attributeKey = "attribute";
 
     @Test
-    void testAssignGroupToAttribute_GivenExistingAttributeValue_WhenOverwriteDisabled_ThenSkipOverwrite() {
+    void testAssignClaimToAttribute_GivenExistingAttributeValue_WhenOverwriteDisabled_ThenSkipOverwrite() {
         var user = Mockito.mock(UserModel.class);
 
         Mockito.when(user.getAttributeStream(attributeKey))
@@ -25,14 +25,14 @@ class ClaimToAttributeMapperTest {
 
         var subject = new ClaimToAttributeMapper();
         var config = newMapperConfig();
-        setIgnoreGroups(config);
+        setIgnorePatterns(config);
         subject.assignClaimToAttribute(realmName, idpAlias, user, Collections.emptyList(), config);
 
         Mockito.verify(user, Mockito.never()).setAttribute(Mockito.anyString(), Mockito.anyList());
     }
 
     @Test
-    void testAssignGroupToAttribute_GivenExistingEmptyAttribute_WhenOverwriteDisabled_ThenSet() {
+    void testAssignClaimToAttribute_GivenExistingEmptyAttribute_WhenOverwriteDisabled_ThenSet() {
         var user = Mockito.mock(UserModel.class);
 
         Mockito.when(user.getAttributeStream(attributeKey))
@@ -40,14 +40,14 @@ class ClaimToAttributeMapperTest {
 
         var subject = new ClaimToAttributeMapper();
         var config = newMapperConfig();
-        setIgnoreGroups(config);
+        setIgnorePatterns(config);
         subject.assignClaimToAttribute(realmName, idpAlias, user, List.of("sapphire-stars"), config);
 
         Mockito.verify(user).setAttribute(attributeKey, List.of("sapphire-stars"));
     }
 
     @Test
-    void testAssignGroupToAttribute_GivenExistingAttributeValue_WhenOverwriteEnabled_ThenOverwrite() {
+    void testAssignClaimToAttribute_GivenExistingAttributeValue_WhenOverwriteEnabled_ThenOverwrite() {
         var user = Mockito.mock(UserModel.class);
 
         Mockito.when(user.getAttributeStream(attributeKey))
@@ -55,7 +55,7 @@ class ClaimToAttributeMapperTest {
 
         var subject = new ClaimToAttributeMapper();
         var config = newMapperConfig();
-        setIgnoreGroups(config);
+        setIgnorePatterns(config);
         setOverwriteEnabled(config);
         subject.assignClaimToAttribute(realmName, idpAlias, user, List.of("rose-canyon"), config);
 
@@ -63,21 +63,21 @@ class ClaimToAttributeMapperTest {
     }
 
     @Test
-    void testAssignGroupToAttribute_GivenNonExistingAttributeValue_ThenSetAttribute() {
+    void testAssignClaimToAttribute_GivenNonExistingAttributeValue_ThenSetAttribute() {
         var user = Mockito.mock(UserModel.class);
 
         Mockito.when(user.getAttributeStream(Mockito.anyString()))
                 .thenReturn(Stream.of(""));
         var subject = new ClaimToAttributeMapper();
         var config = newMapperConfig();
-        setIgnoreGroups(config);
+        setIgnorePatterns(config);
         subject.assignClaimToAttribute(realmName, idpAlias, user, List.of("sapphire-stars"), config);
 
         Mockito.verify(user).setAttribute(attributeKey, List.of("sapphire-stars"));
     }
 
     @Test
-    void testAssignGroupToAttribute_GivenNonExistingAttributeValue_WhenGroupIgnore_ThenSkipAttribute() {
+    void testAssignClaimToAttribute_GivenNonExistingAttributeValue_WhenIgnorePatternGiven_ThenSkipAttribute() {
         var user = Mockito.mock(UserModel.class);
 
         Mockito.when(user.getAttributeStream(attributeKey))
@@ -86,7 +86,7 @@ class ClaimToAttributeMapperTest {
         var config = newMapperConfig();
         setWhiteSpace(config);
         setLowerCase(config);
-        setIgnoreGroups(config, "\\s*Sapphire.*");
+        setIgnorePatterns(config, "\\s*Sapphire.*", "another pattern");
 
         subject.assignClaimToAttribute(realmName, idpAlias, user, List.of(" Sapphire Stars"), config);
 
@@ -94,7 +94,7 @@ class ClaimToAttributeMapperTest {
     }
 
     @Test
-    void testAssignGroupToAttribute_GivenMultipleGroups_ThenSkipUpdate() {
+    void testAssignClaimToAttribute_GivenClaimWithMultipleEntries_WhenEntriesCannotBeReduced_ThenSkipUpdate() {
         var user = Mockito.mock(UserModel.class);
 
         Mockito.when(user.getAttributeStream(attributeKey))
@@ -102,15 +102,15 @@ class ClaimToAttributeMapperTest {
 
         var subject = new ClaimToAttributeMapper();
         var config = newMapperConfig();
-        setIgnoreGroups(config);
+        setIgnorePatterns(config);
 
         subject.assignClaimToAttribute(realmName, idpAlias, user, List.of("sapphire-stars", "rose-canyon"), config);
 
         Mockito.verify(user, Mockito.never()).setAttribute(Mockito.anyString(), Mockito.anyList());
     }
 
-    private void setIgnoreGroups(ClaimToAttributeMapper.MapperConfig mapperConfig, String... ignoreGroups) {
-        mapperConfig.map.put(ClaimToAttributeMapper.IGNORE_ENTRIES_PROPERTY, String.join("##", ignoreGroups));
+    private void setIgnorePatterns(ClaimToAttributeMapper.MapperConfig mapperConfig, String... patterns) {
+        mapperConfig.map.put(ClaimToAttributeMapper.IGNORE_ENTRIES_PROPERTY, String.join("##", patterns));
     }
 
     private void setLowerCase(ClaimToAttributeMapper.MapperConfig mapperConfig) {
