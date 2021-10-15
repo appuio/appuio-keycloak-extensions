@@ -34,12 +34,21 @@ class GroupNameFormatterTest {
     }
 
     @Test
-    void testFormat_GivenInputWithPrefix_ThenExpectNoPrefix() {
+    void testFormat_GivenInputWithSimplePrefix_ThenExpectNoPrefix() {
         var subject = new GroupNameFormatter().withTrimPrefix("prefix");
 
         var result = subject.format("prefixsapphire-stars");
 
         assertThat(result).isEqualTo("sapphire-stars");
+    }
+
+    @Test
+    void testFormat_GivenInputWithRegexPrefix_ThenExpectNoPrefix() {
+        var subject = new GroupNameFormatter().withTrimPrefix("(rose|sapphire)-");
+
+        var result = subject.format("rose-stars");
+
+        assertThat(result).isEqualTo("stars");
     }
 
     @Test
