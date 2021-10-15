@@ -1,1 +1,2 @@
 cloud.appuio.keycloak.extensions.mappers.ClaimToGroupMapper
+cloud.appuio.keycloak.extensions.mappers.ClaimToAttributeMapper
