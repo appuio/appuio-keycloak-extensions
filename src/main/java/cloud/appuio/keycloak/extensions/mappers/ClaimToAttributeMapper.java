@@ -127,7 +127,15 @@ public class ClaimToAttributeMapper extends AbstractClaimMapper {
         );
         overwriteAttribute.setHelpText("Overwrite the value of the target attribute even if it is already set.");
 
-        return List.of(targetAttribute, overwriteAttribute, ignoreEntries, GroupNameFormatter.TO_LOWERCASE, GroupNameFormatter.TRIM_WHITESPACE, GroupNameFormatter.TRIM_PREFIX);
+        var claimProperty = new ProviderConfigProperty(
+                CLAIM, "Claim name", null, ProviderConfigProperty.STRING_TYPE, ""
+        );
+        claimProperty.setHelpText("Name of the claim to search for in token. " +
+                "You can reference nested claims using a '.', i.e. 'address.locality'. " +
+                "To use dot (.) literally, escape it with backslash (\\.)"
+        );
+
+        return List.of(claimProperty, targetAttribute, overwriteAttribute, ignoreEntries, GroupNameFormatter.TO_LOWERCASE, GroupNameFormatter.TRIM_WHITESPACE, GroupNameFormatter.TRIM_PREFIX);
     }
 
     static class MapperConfig {
