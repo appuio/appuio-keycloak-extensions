@@ -124,11 +124,11 @@ public class ClaimToGroupMapper extends AbstractClaimMapper {
         }
 
         boolean enabledTrimWhitespace() {
-            return Boolean.parseBoolean(map.getOrDefault(GroupNameFormatter.TRIM_WHITESPACE_PROPERTY, String.valueOf(true)));
+            return Boolean.parseBoolean(map.getOrDefault(GroupNameFormatter.TRIM_WHITESPACE_PROPERTY, String.valueOf(false)));
         }
 
         boolean enabledToLowerCase() {
-            return Boolean.parseBoolean(map.getOrDefault(GroupNameFormatter.TO_LOWERCASE_PROPERTY, String.valueOf(true)));
+            return Boolean.parseBoolean(map.getOrDefault(GroupNameFormatter.TO_LOWERCASE_PROPERTY, String.valueOf(false)));
         }
 
         String getTrimPrefix() {

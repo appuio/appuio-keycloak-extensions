@@ -54,12 +54,12 @@ public class GroupNameFormatter {
             TRIM_WHITESPACE_PROPERTY, "Trim whitespaces",
             "Removes leading and trailing whitespaces completely. " +
                     "Dashes and spaces between words are replaced with a single dash.",
-            ProviderConfigProperty.BOOLEAN_TYPE, true
+            ProviderConfigProperty.BOOLEAN_TYPE, false
     );
 
     public static final ProviderConfigProperty TO_LOWERCASE = new ProviderConfigProperty(
             TO_LOWERCASE_PROPERTY, "Lowercase names",
             "Transforms the strings to lower case. ",
-            ProviderConfigProperty.BOOLEAN_TYPE, true
+            ProviderConfigProperty.BOOLEAN_TYPE, false
     );
 }

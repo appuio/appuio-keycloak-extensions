@@ -23,7 +23,7 @@ class ClaimToGroupMapperTest {
 
         //noinspection unchecked
         Mockito.when(realm.getGroupsStream()).thenReturn(Stream.empty(), Stream.of(createdGroup));
-        Mockito.when(createdGroup.getName()).thenReturn("rose-canyon");
+        Mockito.when(createdGroup.getName()).thenReturn("Rose Canyon");
 
         var subject = new ClaimToGroupMapper();
         var config = newMapperConfig();
@@ -31,7 +31,7 @@ class ClaimToGroupMapperTest {
 
         subject.doSyncGroups(realm, user, List.of("Rose Canyon"), newInstrumentation(), config);
 
-        Mockito.verify(realm).createGroup("rose-canyon");
+        Mockito.verify(realm).createGroup("Rose Canyon");
         Mockito.verify(user).joinGroup(createdGroup);
         Mockito.verify(user, Mockito.never()).leaveGroup(Mockito.any());
     }
@@ -60,7 +60,7 @@ class ClaimToGroupMapperTest {
         var group = Mockito.mock(GroupModel.class);
 
         Mockito.when(realm.getGroupsStream()).thenReturn(Stream.of(group));
-        Mockito.when(group.getName()).thenReturn("rose-canyon");
+        Mockito.when(group.getName()).thenReturn("Rose Canyon");
 
         var subject = new ClaimToGroupMapper();
         var config = newMapperConfig();
@@ -80,7 +80,7 @@ class ClaimToGroupMapperTest {
         var groupToKeep = Mockito.mock(GroupModel.class);
 
         Mockito.when(user.getGroupsStream()).thenReturn(Stream.of(groupToRemove, groupToKeep));
-        Mockito.when(groupToKeep.getName()).thenReturn("keep-group");
+        Mockito.when(groupToKeep.getName()).thenReturn("keep group");
 
         var subject = new ClaimToGroupMapper();
         var config = newMapperConfig();
@@ -94,13 +94,13 @@ class ClaimToGroupMapperTest {
     }
 
     @Test
-    void testFilterGroupNames_GivenEmptyListOfPattern_WhenDefaultConfig_ThenReturnFormatted() {
+    void testFilterGroupNames_GivenEmptyListOfPattern_WhenDefaultConfig_ThenReturnUnformatted() {
         var subject = new ClaimToGroupMapper();
         var config = newMapperConfig();
 
         var result = subject.filterGroupNames(List.of("Rose Canyon"), config);
 
-        assertThat(result).containsExactly("rose-canyon");
+        assertThat(result).containsExactly("Rose Canyon");
     }
 
     @Test
@@ -108,6 +108,8 @@ class ClaimToGroupMapperTest {
         var subject = new ClaimToGroupMapper();
         var config = newMapperConfig();
         setIncludePatterns(config, "^Rose.*");
+        setLowerCase(config);
+        setWhiteSpace(config);
 
         var result = subject.filterGroupNames(List.of("Rose Canyon", "Sapphire Stars"), config);
 
@@ -135,6 +137,14 @@ class ClaimToGroupMapperTest {
 
     private void setIncludePatterns(ClaimToGroupMapper.MapperConfig mapperConfig, String... patterns) {
         mapperConfig.map.put(ClaimToGroupMapper.INCLUDE_PATTERNS, String.join("##", patterns));
+    }
+
+    private void setLowerCase(ClaimToGroupMapper.MapperConfig mapperConfig) {
+        mapperConfig.map.put(GroupNameFormatter.TO_LOWERCASE_PROPERTY, Boolean.toString(true));
+    }
+
+    private void setWhiteSpace(ClaimToGroupMapper.MapperConfig mapperConfig) {
+        mapperConfig.map.put(GroupNameFormatter.TRIM_WHITESPACE_PROPERTY, Boolean.toString(true));
     }
 
     private ClaimToGroupMapper.MapperConfig newMapperConfig() {
