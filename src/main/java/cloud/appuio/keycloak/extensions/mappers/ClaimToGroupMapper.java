@@ -54,15 +54,7 @@ public class ClaimToGroupMapper extends AbstractClaimMapper {
     }
 
     void doSyncGroups(RealmModel realm, UserModel user, List<String> rawGroupNames, Instrumentation instrumentation, MapperConfig config) {
-        var formatter = new GroupNameFormatter()
-                .withTrimWhitespace(config.enabledTrimWhitespace())
-                .withToLowerCase(config.enabledToLowerCase());
-
-        var filteredGroupNames = rawGroupNames.stream()
-                .filter(rawName -> matchesPattern(config.getContainsText(), rawName))
-                .map(this::replaceInvalidCharacters)
-                .map(formatter::format)
-                .collect(Collectors.toSet());
+        var filteredGroupNames = filterGroupNames(rawGroupNames, config);
 
         if (config.enabledCreateGroups()) {
             createMissingGroups(realm, filteredGroupNames, instrumentation);
@@ -72,8 +64,20 @@ public class ClaimToGroupMapper extends AbstractClaimMapper {
         joinGroupsInClaim(realm, user, filteredGroupNames, instrumentation);
     }
 
-    private boolean matchesPattern(String pattern, String rawName) {
-        return isEmpty(pattern) || rawName.matches(pattern);
+    Set<String> filterGroupNames(List<String> rawGroupNames, MapperConfig config) {
+        var formatter = new GroupNameFormatter()
+                .withTrimWhitespace(config.enabledTrimWhitespace())
+                .withTrimPrefix(config.getTrimPrefix())
+                .withToLowerCase(config.enabledToLowerCase());
+
+        return rawGroupNames.stream()
+                .filter(rawName -> matchesAnyPattern(config.getIncludePatterns(), rawName))
+                .map(formatter::format)
+                .collect(Collectors.toSet());
+    }
+
+    private boolean matchesAnyPattern(List<String> patterns, String rawName) {
+        return patterns.isEmpty() || patterns.stream().anyMatch(rawName::matches);
     }
 
     private void joinGroupsInClaim(RealmModel realm, UserModel user, Set<String> groupNamesInClaim, Instrumentation instrumentation) {
@@ -105,15 +109,7 @@ public class ClaimToGroupMapper extends AbstractClaimMapper {
         instrumentation.createdGroups(newGroupNames);
     }
 
-    String replaceInvalidCharacters(String groupName) {
-        return groupName.replaceFirst("^/", "").replace("/", "-");
-    }
-
-    private boolean isEmpty(String str) {
-        return str == null || str.length() == 0;
-    }
-
-    public static final String CONTAINS_TEXT = "contains_text";
+    public static final String INCLUDE_PATTERNS = "include_patterns";
     public static final String CREATE_GROUPS = "create_groups";
 
     static class MapperConfig {
@@ -135,13 +131,46 @@ public class ClaimToGroupMapper extends AbstractClaimMapper {
             return Boolean.parseBoolean(map.getOrDefault(GroupNameFormatter.TO_LOWERCASE_PROPERTY, String.valueOf(true)));
         }
 
-        String getContainsText() {
-            return map.getOrDefault(CONTAINS_TEXT, "");
+        String getTrimPrefix() {
+            return map.getOrDefault(GroupNameFormatter.TRIM_PREFIX_PROPERTY, "");
+        }
+
+        List<String> getIncludePatterns() {
+            // Strings of type MULTIVALUED_STRING_TYPE are stored as a single string, delimited by "##".
+            String rawPatterns = map.getOrDefault(INCLUDE_PATTERNS, "");
+            return Arrays.stream(rawPatterns.split("##")).filter(s -> !"".equals(s)).collect(Collectors.toList());
         }
 
         boolean enabledCreateGroups() {
             return Boolean.parseBoolean(map.getOrDefault(CREATE_GROUPS, String.valueOf(false)));
         }
+    }
+
+    @Override
+    public List<ProviderConfigProperty> getConfigProperties() {
+
+        var claimProperty = new ProviderConfigProperty(
+                CLAIM, "Claim name", null, ProviderConfigProperty.STRING_TYPE, ""
+        );
+        claimProperty.setHelpText("**REQUIRED** Name of claim to search for in token. " +
+                "This claim must be a string array with the names of the groups which the user is member. " +
+                "You can reference nested claims using a '.', i.e. 'address.locality'. " +
+                "To use dot (.) literally, escape it with backslash (\\.)");
+
+        var includePatternsProperty = new ProviderConfigProperty(
+                INCLUDE_PATTERNS, "Match patterns", null, ProviderConfigProperty.MULTIVALUED_STRING_TYPE, ""
+        );
+        includePatternsProperty.setHelpText("Only sync groups when their name matches one of the given pattern. " +
+                "If empty, all groups are synced. " +
+                "The patterns are matched before trimming whitespaces or prefix and before lowering case.");
+
+        var createGroupsProperty = new ProviderConfigProperty(
+                CREATE_GROUPS, "Create groups if not exists", null, ProviderConfigProperty.BOOLEAN_TYPE, false
+        );
+        createGroupsProperty.setHelpText("Indicates if missing groups must be created in the realms. " +
+                "Otherwise, they will be ignored.");
+
+        return List.of(claimProperty, includePatternsProperty, createGroupsProperty, GroupNameFormatter.TO_LOWERCASE, GroupNameFormatter.TRIM_WHITESPACE, GroupNameFormatter.TRIM_PREFIX);
     }
 
     @Override
@@ -169,32 +198,6 @@ public class ClaimToGroupMapper extends AbstractClaimMapper {
     @Override
     public String getHelpText() {
         return "If a claim exists, sync the IdP user's groups with realm groups";
-    }
-
-    @Override
-    public List<ProviderConfigProperty> getConfigProperties() {
-
-        var claimProperty = new ProviderConfigProperty(
-                CLAIM, "Claim name", null, ProviderConfigProperty.STRING_TYPE, ""
-        );
-        claimProperty.setHelpText("Name of claim to search for in token. " +
-                "This claim must be a string array with the names of the groups which the user is member. " +
-                "You can reference nested claims using a '.', i.e. 'address.locality'. " +
-                "To use dot (.) literally, escape it with backslash (\\.)");
-
-        var containsTextProperty = new ProviderConfigProperty(
-                CONTAINS_TEXT, "Contains text", null, ProviderConfigProperty.STRING_TYPE, ""
-        );
-        containsTextProperty.setHelpText("Only sync groups that contains this text in its name. " +
-                "If empty, sync all groups.");
-
-        var createGroupsProperty = new ProviderConfigProperty(
-                CREATE_GROUPS, "Create groups if not exists", null, ProviderConfigProperty.BOOLEAN_TYPE, false
-        );
-        createGroupsProperty.setHelpText("Indicates if missing groups must be created in the realms. " +
-                "Otherwise, they will be ignored.");
-
-        return List.of(claimProperty, containsTextProperty, createGroupsProperty);
     }
 
     @Override

@@ -7,22 +7,13 @@ import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
 import org.mockito.Mockito;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ClaimToGroupMapperTest {
-
-    @Test
-    void testReplaceInvalidCharacters() {
-        var source = "/LDAP/some group";
-        var target = "LDAP-some group";
-
-        var result = new ClaimToGroupMapper().replaceInvalidCharacters(source);
-
-        assertThat(result).isEqualTo(target);
-    }
 
     @Test
     void testSyncGroups_GivenListWithNewGroup_WhenCreateEnabled_ThenCreateAndJoinGroup() {
@@ -102,12 +93,48 @@ class ClaimToGroupMapperTest {
         Mockito.verify(user, Mockito.never()).leaveGroup(groupToKeep);
     }
 
+    @Test
+    void testFilterGroupNames_GivenEmptyListOfPattern_WhenDefaultConfig_ThenReturnFormatted() {
+        var subject = new ClaimToGroupMapper();
+        var config = newMapperConfig();
+
+        var result = subject.filterGroupNames(List.of("Rose Canyon"), config);
+
+        assertThat(result).containsExactly("rose-canyon");
+    }
+
+    @Test
+    void testFilterGroupNames_GivenListOfPattern_WhenPatternMatches_ThenReturnFormatted() {
+        var subject = new ClaimToGroupMapper();
+        var config = newMapperConfig();
+        setIncludePatterns(config, "^Rose.*");
+
+        var result = subject.filterGroupNames(List.of("Rose Canyon", "Sapphire Stars"), config);
+
+        assertThat(result).containsExactly("rose-canyon");
+    }
+
+    @Test
+    void testFilterGroupNames_GivenListOfPattern_WhenPatternDoesNotMatch_ThenReturnEmpty() {
+        var subject = new ClaimToGroupMapper();
+        var config = newMapperConfig();
+        setIncludePatterns(config, "^rose.*");
+
+        var result = subject.filterGroupNames(List.of("Rose Canyon"), config);
+
+        assertThat(result).isEmpty();
+    }
+
     private ClaimToGroupMapper.Instrumentation newInstrumentation() {
         return new ClaimToGroupMapper.Instrumentation("realm", "idp", "user");
     }
 
     private void setCreateGroupEnabled(ClaimToGroupMapper.MapperConfig mapperConfig) {
         mapperConfig.map.put(ClaimToGroupMapper.CREATE_GROUPS, Boolean.toString(true));
+    }
+
+    private void setIncludePatterns(ClaimToGroupMapper.MapperConfig mapperConfig, String... patterns) {
+        mapperConfig.map.put(ClaimToGroupMapper.INCLUDE_PATTERNS, String.join("##", patterns));
     }
 
     private ClaimToGroupMapper.MapperConfig newMapperConfig() {
