@@ -76,9 +76,9 @@ public class ClaimToGroupMapper extends AbstractClaimMapper {
         return isEmpty(pattern) || rawName.matches(pattern);
     }
 
-    private void joinGroupsInClaim(RealmModel realm, UserModel user, Set<String> groupNames, Instrumentation instrumentation) {
+    private void joinGroupsInClaim(RealmModel realm, UserModel user, Set<String> groupNamesInClaim, Instrumentation instrumentation) {
         var joinedGroupNames = realm.getGroupsStream()
-                .filter(group -> groupNames.contains(group.getName()))
+                .filter(group -> groupNamesInClaim.contains(group.getName()))
                 .filter(group -> !user.isMemberOf(group))
                 .peek(user::joinGroup)
                 .map(GroupModel::getName)
@@ -86,9 +86,9 @@ public class ClaimToGroupMapper extends AbstractClaimMapper {
         instrumentation.joinedGroups(joinedGroupNames);
     }
 
-    private void leaveGroupsNotInClaim(UserModel user, Set<String> groupNames, Instrumentation instrumentation) {
+    private void leaveGroupsNotInClaim(UserModel user, Set<String> groupNamesInClaim, Instrumentation instrumentation) {
         var leftGroupNames = user.getGroupsStream()
-                .filter(group -> !groupNames.contains(group.getName()))
+                .filter(group -> !groupNamesInClaim.contains(group.getName()))
                 .peek(user::leaveGroup)
                 .map(GroupModel::getName)
                 .collect(Collectors.joining(", "));
@@ -133,10 +133,6 @@ public class ClaimToGroupMapper extends AbstractClaimMapper {
 
         boolean enabledToLowerCase() {
             return Boolean.parseBoolean(map.getOrDefault(GroupNameFormatter.TO_LOWERCASE_PROPERTY, String.valueOf(true)));
-        }
-
-        String getTrimPrefix() {
-            return map.getOrDefault(GroupNameFormatter.TRIM_PREFIX_PROPERTY, "");
         }
 
         String getContainsText() {
@@ -207,7 +203,7 @@ public class ClaimToGroupMapper extends AbstractClaimMapper {
     }
 
     /**
-     * This class is meant to remove boilerplate from business logic by moving the logging statements but keep the meaning of it.
+     * This class is meant to remove boilerplate from business logic by moving the logging calls but still provide meaning.
      */
     static class Instrumentation {
         private static final Logger logger = Logger.getLogger(ClaimToGroupMapper.class);
