@@ -17,9 +17,11 @@ import org.keycloak.broker.provider.BrokeredIdentityContext;
 import org.keycloak.models.*;
 import org.keycloak.provider.ProviderConfigProperty;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Class with the implementation of the identity provider mapper that sync the user's groups
@@ -27,61 +29,160 @@ import java.util.stream.Stream;
  */
 public class ClaimToGroupMapper extends AbstractClaimMapper {
 
-    private static final Logger logger = Logger.getLogger(ClaimToGroupMapper.class);
-
-    // global properties -------------------------------------
-
-    private static final String PROVIDER_ID = "oidc-group-idp-mapper";
-
-    private static final String[] COMPATIBLE_PROVIDERS = {
-            KeycloakOIDCIdentityProviderFactory.PROVIDER_ID, OIDCIdentityProviderFactory.PROVIDER_ID
-    };
-
-    private static final List<ProviderConfigProperty> CONFIG_PROPERTIES = new ArrayList<>();
-
-    private static final String CONTAINS_TEXT = "contains_text";
-
-    private static final String CREATE_GROUPS = "create_groups";
-
-    static {
-        var claimProperty = new ProviderConfigProperty();
-        claimProperty.setName(CLAIM);
-        claimProperty.setLabel("Claim");
-        claimProperty.setHelpText(
-                "Name of claim to search for in token. This claim must be a string array with "
-                        + "the names of the groups which the user is member. You can reference nested claims using a "
-                        + "'.', i.e. 'address.locality'. To use dot (.) literally, escape it with backslash (\\.)");
-        claimProperty.setType(ProviderConfigProperty.STRING_TYPE);
-        CONFIG_PROPERTIES.add(claimProperty);
-
-        var containsTextProperty = new ProviderConfigProperty();
-        containsTextProperty.setName(CONTAINS_TEXT);
-        containsTextProperty.setLabel("Contains text");
-        containsTextProperty.setHelpText(
-                "Only sync groups that contains this text in its name. If empty, sync all groups.");
-        containsTextProperty.setType(ProviderConfigProperty.STRING_TYPE);
-        CONFIG_PROPERTIES.add(containsTextProperty);
-
-        var createGroupsProperty = new ProviderConfigProperty();
-        createGroupsProperty.setName(CREATE_GROUPS);
-        createGroupsProperty.setLabel("Create groups if not exists");
-        createGroupsProperty.setHelpText(
-                "Indicates if missing groups must be created in the realms. Otherwise, they will "
-                        + "be ignored.");
-        createGroupsProperty.setType(ProviderConfigProperty.BOOLEAN_TYPE);
-        CONFIG_PROPERTIES.add(createGroupsProperty);
+    @Override
+    public void importNewUser(KeycloakSession session, RealmModel realm, UserModel user, IdentityProviderMapperModel mapperModel, BrokeredIdentityContext context) {
+        this.syncGroups(realm, user, new MapperConfig(mapperModel.getConfig()), mapperModel, context);
     }
 
-    // properties --------------------------------------------
+    @Override
+    public void updateBrokeredUser(KeycloakSession session, RealmModel realm, UserModel user, IdentityProviderMapperModel mapperModel, BrokeredIdentityContext context) {
+        this.syncGroups(realm, user, new MapperConfig(mapperModel.getConfig()), mapperModel, context);
+    }
+
+    private void syncGroups(RealmModel realm, UserModel user, MapperConfig config, IdentityProviderMapperModel mapperModel, BrokeredIdentityContext context) {
+        // abort if mapper is configured incorrectly.
+        if (config.getClaimName().equals("")) return;
+
+        var instrumentation = new Instrumentation(realm.getName(), mapperModel.getIdentityProviderAlias(), user.getUsername());
+
+        var claim = ClaimListExtractor.extractClaim(context, config.getClaimName());
+        if (claim.isEmpty()) {
+            instrumentation.noClaimForUser(config.getClaimName());
+            return;
+        }
+        doSyncGroups(realm, user, claim.get(), instrumentation, config);
+    }
+
+    void doSyncGroups(RealmModel realm, UserModel user, List<String> rawGroupNames, Instrumentation instrumentation, MapperConfig config) {
+        var filteredGroupNames = filterGroupNames(rawGroupNames, config);
+
+        if (config.enabledCreateGroups()) {
+            createMissingGroups(realm, filteredGroupNames, instrumentation);
+        }
+
+        leaveGroupsNotInClaim(user, filteredGroupNames, instrumentation);
+        joinGroupsInClaim(realm, user, filteredGroupNames, instrumentation);
+    }
+
+    Set<String> filterGroupNames(List<String> rawGroupNames, MapperConfig config) {
+        var formatter = new GroupNameFormatter()
+                .withTrimWhitespace(config.enabledTrimWhitespace())
+                .withTrimPrefix(config.getTrimPrefix())
+                .withToLowerCase(config.enabledToLowerCase());
+
+        return rawGroupNames.stream()
+                .filter(rawName -> matchesAnyPattern(config.getIncludePatterns(), rawName))
+                .map(formatter::format)
+                .collect(Collectors.toSet());
+    }
+
+    private boolean matchesAnyPattern(List<String> patterns, String rawName) {
+        return patterns.isEmpty() || patterns.stream().anyMatch(rawName::matches);
+    }
+
+    private void joinGroupsInClaim(RealmModel realm, UserModel user, Set<String> groupNamesInClaim, Instrumentation instrumentation) {
+        var joinedGroupNames = realm.getGroupsStream()
+                .filter(group -> groupNamesInClaim.contains(group.getName()))
+                .filter(group -> !user.isMemberOf(group))
+                .peek(user::joinGroup)
+                .map(GroupModel::getName)
+                .collect(Collectors.joining(", "));
+        instrumentation.joinedGroups(joinedGroupNames);
+    }
+
+    private void leaveGroupsNotInClaim(UserModel user, Set<String> groupNamesInClaim, Instrumentation instrumentation) {
+        var leftGroupNames = user.getGroupsStream()
+                .filter(group -> !groupNamesInClaim.contains(group.getName()))
+                .peek(user::leaveGroup)
+                .map(GroupModel::getName)
+                .collect(Collectors.joining(", "));
+        instrumentation.leftGroups(leftGroupNames);
+    }
+
+    private void createMissingGroups(RealmModel realm, Set<String> groupNames, Instrumentation instrumentation) {
+        var newGroupNames = groupNames.stream()
+                .filter(groupName -> realm.getGroupsStream()
+                        .map(GroupModel::getName)
+                        .noneMatch(existingGroup -> existingGroup.equals(groupName)))
+                .peek(realm::createGroup)
+                .collect(Collectors.joining(", "));
+        instrumentation.createdGroups(newGroupNames);
+    }
+
+    public static final String INCLUDE_PATTERNS = "include_patterns";
+    public static final String CREATE_GROUPS = "create_groups";
+
+    static class MapperConfig {
+        Map<String, String> map;
+
+        MapperConfig(Map<String, String> config) {
+            this.map = config;
+        }
+
+        String getClaimName() {
+            return map.getOrDefault(CLAIM, "");
+        }
+
+        boolean enabledTrimWhitespace() {
+            return Boolean.parseBoolean(map.getOrDefault(GroupNameFormatter.TRIM_WHITESPACE_PROPERTY, String.valueOf(false)));
+        }
+
+        boolean enabledToLowerCase() {
+            return Boolean.parseBoolean(map.getOrDefault(GroupNameFormatter.TO_LOWERCASE_PROPERTY, String.valueOf(false)));
+        }
+
+        String getTrimPrefix() {
+            return map.getOrDefault(GroupNameFormatter.TRIM_PREFIX_PROPERTY, "");
+        }
+
+        List<String> getIncludePatterns() {
+            // Strings of type MULTIVALUED_STRING_TYPE are stored as a single string, delimited by "##".
+            String rawPatterns = map.getOrDefault(INCLUDE_PATTERNS, "");
+            return Arrays.stream(rawPatterns.split("##")).filter(s -> !"".equals(s)).collect(Collectors.toList());
+        }
+
+        boolean enabledCreateGroups() {
+            return Boolean.parseBoolean(map.getOrDefault(CREATE_GROUPS, String.valueOf(false)));
+        }
+    }
+
+    @Override
+    public List<ProviderConfigProperty> getConfigProperties() {
+
+        var claimProperty = new ProviderConfigProperty(
+                CLAIM, "Claim name", null, ProviderConfigProperty.STRING_TYPE, ""
+        );
+        claimProperty.setHelpText("**REQUIRED** Name of claim to search for in token. " +
+                "This claim must be a string array with the names of the groups which the user is member. " +
+                "You can reference nested claims using a '.', i.e. 'address.locality'. " +
+                "To use dot (.) literally, escape it with backslash (\\.)");
+
+        var includePatternsProperty = new ProviderConfigProperty(
+                INCLUDE_PATTERNS, "Match patterns", null, ProviderConfigProperty.MULTIVALUED_STRING_TYPE, ""
+        );
+        includePatternsProperty.setHelpText("Only sync groups when their name matches one of the given pattern. " +
+                "If empty, all groups are synced. " +
+                "The patterns are matched before trimming whitespaces or prefix and before lowering case.");
+
+        var createGroupsProperty = new ProviderConfigProperty(
+                CREATE_GROUPS, "Create groups if not exists", null, ProviderConfigProperty.BOOLEAN_TYPE, false
+        );
+        createGroupsProperty.setHelpText("Indicates if missing groups must be created in the realms. " +
+                "Otherwise, they will be ignored.");
+
+        return List.of(claimProperty, includePatternsProperty, createGroupsProperty, GroupNameFormatter.TO_LOWERCASE, GroupNameFormatter.TRIM_WHITESPACE, GroupNameFormatter.TRIM_PREFIX);
+    }
 
     @Override
     public String getId() {
-        return PROVIDER_ID;
+        return "oidc-group-idp-mapper";
     }
 
     @Override
     public String[] getCompatibleProviders() {
-        return COMPATIBLE_PROVIDERS;
+        return new String[]{
+                KeycloakOIDCIdentityProviderFactory.PROVIDER_ID, OIDCIdentityProviderFactory.PROVIDER_ID
+        };
     }
 
     @Override
@@ -100,171 +201,43 @@ public class ClaimToGroupMapper extends AbstractClaimMapper {
     }
 
     @Override
-    public List<ProviderConfigProperty> getConfigProperties() {
-        return CONFIG_PROPERTIES;
-    }
-
-    // actions -----------------------------------------------
-
-    @Override
-    public void importNewUser(
-            KeycloakSession session,
-            RealmModel realm,
-            UserModel user,
-            IdentityProviderMapperModel mapperModel,
-            BrokeredIdentityContext context) {
-        super.importNewUser(session, realm, user, mapperModel, context);
-
-        this.syncGroups(realm, user, mapperModel, context);
-    }
-
-    @Override
-    public void updateBrokeredUser(
-            KeycloakSession session,
-            RealmModel realm,
-            UserModel user,
-            IdentityProviderMapperModel mapperModel,
-            BrokeredIdentityContext context) {
-
-        this.syncGroups(realm, user, mapperModel, context);
-    }
-
-    private void syncGroups(
-            RealmModel realm,
-            UserModel user,
-            IdentityProviderMapperModel mapperModel,
-            BrokeredIdentityContext context) {
-
-        // check configurations
-        var groupClaimName = mapperModel.getConfig().get(CLAIM);
-        var containsText = mapperModel.getConfig().get(CONTAINS_TEXT);
-        var createGroups = Boolean.valueOf(mapperModel.getConfig().get(CREATE_GROUPS));
-
-        if (isEmpty(groupClaimName)) return;
-
-        var claim = ClaimListExtractor.extractClaim(context, groupClaimName);
-        if (claim.isEmpty()) {
-            logger.debugf(
-                    "Realm [%s], IdP [%s]: no group claim (claim name: [%s]) for user [%s], ignoring...",
-                    realm.getName(),
-                    mapperModel.getIdentityProviderAlias(),
-                    groupClaimName,
-                    user.getUsername());
-            return;
-        }
-
-        logger.debugf(
-                "Realm [%s], IdP [%s]: starting mapping groups for user [%s]",
-                realm.getName(), mapperModel.getIdentityProviderAlias(), user.getUsername());
-
-        // get user current groups
-        var currentGroups = user.getGroupsStream()
-                .filter(g -> isEmpty(containsText) || g.getName().contains(containsText))
-                .collect(Collectors.toSet());
-
-        logger.debugf(
-                "Realm [%s], IdP [%s]: current groups for user [%s]: %s",
-                realm.getName(),
-                mapperModel.getIdentityProviderAlias(),
-                user.getUsername(),
-                currentGroups.stream().map(GroupModel::getName).collect(Collectors.joining(",")));
-
-        // map and filter the groups by name
-        var groupNamesFromClaim = claim.get().stream()
-                .filter(t -> isEmpty(containsText) || t.contains(containsText))
-                .map(this::replaceInvalidCharacters)
-                .collect(Collectors.toSet());
-
-        var newRealmGroups = filterNewRealmGroups(realm, groupNamesFromClaim, createGroups);
-
-        logger.debugf(
-                "Realm [%s], IdP [%s]: new groups for user [%s]: %s",
-                realm.getName(),
-                mapperModel.getIdentityProviderAlias(),
-                user.getUsername(),
-                newRealmGroups.stream().map(GroupModel::getName).collect(Collectors.joining(",")));
-
-        // Leave the groups where the user is not member of
-        findGroupsToBeRemoved(currentGroups, newRealmGroups).forEach(user::leaveGroup);
-
-        // Join the groups where the user is not yet member of
-        findGroupsToBeAdded(currentGroups, newRealmGroups).forEach(user::joinGroup);
-
-        logger.debugf(
-                "Realm [%s], IdP [%s]: finishing mapping groups for user [%s]",
-                realm.getName(), mapperModel.getIdentityProviderAlias(), user.getUsername());
-    }
-
-    String replaceInvalidCharacters(String groupName) {
-        return groupName.replaceFirst("^/", "").replace("/", "-");
-    }
-
-    /**
-     * Returns a stream that contains the groups that do not yet exist in the realm.
-     *
-     * @return new set that contains only the groups to create
-     */
-    private Set<GroupModel> filterNewRealmGroups(
-            RealmModel realm, Set<String> newGroupsNames, Boolean createGroups) {
-
-        Set<GroupModel> groups = new HashSet<>();
-
-        newGroupsNames.forEach(
-                groupName -> {
-                    Optional<GroupModel> group = findGroupByName(realm, groupName);
-
-                    // create group if not found
-                    group.ifPresentOrElse(
-                            groups::add,
-                            () -> {
-                                if (createGroups) {
-                                    createAndJoinGroup(realm, groups, groupName);
-                                }
-                            });
-                });
-
-        return groups;
-    }
-
-    private void createAndJoinGroup(RealmModel realm, Set<GroupModel> groups, String groupName) {
-        logger.debugf("Realm [%s]: creating group [%s]", realm.getName(), groupName);
-
-        var newGroup = realm.createGroup(groupName);
-        groups.add(newGroup);
-    }
-
-    private static Optional<GroupModel> findGroupByName(RealmModel realm, String name) {
-        return realm.getGroupsStream().filter(g -> g.getName().equals(name)).findFirst();
-    }
-
-    /**
-     * Subtracts newGroups from currentGroups.
-     */
-    static Stream<GroupModel> findGroupsToBeRemoved(
-            Set<GroupModel> currentGroups, Set<GroupModel> newGroups) {
-        var resultSet = new HashSet<>(currentGroups);
-        resultSet.removeAll(newGroups);
-        return resultSet.stream();
-    }
-
-    /**
-     * Subtracts current groups from newGroups.
-     */
-    static Stream<GroupModel> findGroupsToBeAdded(
-            Set<GroupModel> currentGroups, Set<GroupModel> newGroups) {
-        var resultSet = new HashSet<>(newGroups);
-
-        // (New - Current) will result in a set with the groups where the user will be added
-        resultSet.removeAll(currentGroups);
-        return resultSet.stream();
-    }
-
-    private static boolean isEmpty(String str) {
-        return str == null || str.length() == 0;
-    }
-
-    @Override
     public boolean supportsSyncMode(IdentityProviderSyncMode syncMode) {
         return Arrays.asList(IdentityProviderSyncMode.IMPORT, IdentityProviderSyncMode.FORCE).contains(syncMode);
+    }
+
+    /**
+     * This class is meant to remove boilerplate from business logic by moving the logging calls but still provide meaning.
+     */
+    static class Instrumentation {
+        private static final Logger logger = Logger.getLogger(ClaimToGroupMapper.class);
+        private final String idpAlias;
+        private final String username;
+        private final String realmName;
+
+        Instrumentation(String realmName, String identityProviderAlias, String username) {
+            this.realmName = realmName;
+            this.idpAlias = identityProviderAlias;
+            this.username = username;
+        }
+
+        void noClaimForUser(String claimName) {
+            logger.debugf("Realm [%s], IdP [%s]: user [%s] has no claim: [%s], ignoring...",
+                    this.realmName, this.idpAlias, this.username, claimName);
+        }
+
+        void createdGroups(String newGroupNames) {
+            logger.debugf("Realm [%s], IdP [%s]: created new groups for user [%s]: [%s]",
+                    this.realmName, this.idpAlias, this.username, newGroupNames);
+        }
+
+        void joinedGroups(String joinedGroups) {
+            logger.debugf("Realm [%s], IdP [%s]: user [%s] joined groups: [%s]",
+                    this.realmName, this.idpAlias, this.username, joinedGroups);
+        }
+
+        void leftGroups(String leftGroupNames) {
+            logger.debugf("Realm [%s], IdP [%s]: user [%s] left groups: [%s]",
+                    this.realmName, this.idpAlias, this.username, leftGroupNames);
+        }
     }
 }
