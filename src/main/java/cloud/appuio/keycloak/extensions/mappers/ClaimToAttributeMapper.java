@@ -57,6 +57,7 @@ public class ClaimToAttributeMapper extends AbstractClaimMapper {
         var filteredGroups = claimEntries.stream()
                 .filter(this::ignoreEmptyEntries)
                 .filter(group -> ignoreEntriesThatMatchRegex(config, group))
+                .filter(group -> includeEntriesThatMatchRegex(config, group))
                 .map(formatter::format)
                 .collect(Collectors.toList());
 
@@ -75,6 +76,10 @@ public class ClaimToAttributeMapper extends AbstractClaimMapper {
 
     private boolean ignoreEntriesThatMatchRegex(MapperConfig config, String groupModel) {
         return !groupModel.matches(config.getIgnoreEntriesPattern());
+    }
+
+    private boolean includeEntriesThatMatchRegex(MapperConfig config, String groupModel) {
+        return "".equals(config.getSearchEntriesPattern()) || groupModel.matches(config.getSearchEntriesPattern());
     }
 
     private boolean ignoreEmptyEntries(String group) {
@@ -102,6 +107,7 @@ public class ClaimToAttributeMapper extends AbstractClaimMapper {
     }
 
     public static final String IGNORE_ENTRIES_PROPERTY = "ignore_entries";
+    public static final String SEARCH_ENTRIES_PROPERTY = "search_entries";
     public static final String TARGET_ATTRIBUTE_PROPERTY = "target_attribute";
     public static final String OVERWRITE_ATTRIBUTE_PROPERTY = "overwrite_attribute";
 
@@ -113,6 +119,14 @@ public class ClaimToAttributeMapper extends AbstractClaimMapper {
         ignoreEntries.setHelpText("The claim might contain multiple values that you want to ignore. " +
                 "This pattern is a regex that is matched against each claim entry before being trimmed or formatted. " +
                 "If the pattern matches, the entry is ignored.");
+
+        var searchEntries = new ProviderConfigProperty(
+                SEARCH_ENTRIES_PROPERTY, "Search entries pattern", null, ProviderConfigProperty.STRING_TYPE, null
+        );
+        searchEntries.setHelpText("You might be only interested in certain values of a claim. " +
+                "This pattern is a regex that is matched against each claim entry before being trimmed or formatted. " +
+                "Only entries that match this pattern are further processed. " +
+                "'Ignore entries pattern' takes precedence and is basically the inverse behavior of this setting.");
 
         var targetAttribute = new ProviderConfigProperty(
                 TARGET_ATTRIBUTE_PROPERTY, "Target attribute", null, ProviderConfigProperty.STRING_TYPE, ""
@@ -133,7 +147,7 @@ public class ClaimToAttributeMapper extends AbstractClaimMapper {
                 "To use dot (.) literally, escape it with backslash (\\.)"
         );
 
-        return List.of(claimProperty, targetAttribute, overwriteAttribute, ignoreEntries, GroupNameFormatter.TO_LOWERCASE, GroupNameFormatter.TRIM_WHITESPACE, GroupNameFormatter.TRIM_PREFIX);
+        return List.of(claimProperty, targetAttribute, overwriteAttribute, ignoreEntries, searchEntries, GroupNameFormatter.TO_LOWERCASE, GroupNameFormatter.TRIM_WHITESPACE, GroupNameFormatter.TRIM_PREFIX);
     }
 
     static class MapperConfig {
@@ -145,6 +159,10 @@ public class ClaimToAttributeMapper extends AbstractClaimMapper {
 
         String getIgnoreEntriesPattern() {
             return map.getOrDefault(IGNORE_ENTRIES_PROPERTY, "");
+        }
+
+        String getSearchEntriesPattern() {
+            return map.getOrDefault(SEARCH_ENTRIES_PROPERTY, "");
         }
 
         String getTargetAttributeKey() {

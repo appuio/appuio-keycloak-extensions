@@ -83,10 +83,28 @@ class ClaimToAttributeMapperTest {
         setWhiteSpace(config);
         setLowerCase(config);
         setIgnorePattern(config, "\\s*Sapphire.*");
+        setSearchPattern(config, "\\s*Sapphire.*"); // to ensure ignore pattern takes precedence
 
         subject.assignClaimToAttribute(realmName, idpAlias, user, List.of(" Sapphire Stars"), config);
 
         Mockito.verify(user, Mockito.never()).setAttribute(Mockito.anyString(), Mockito.anyList());
+    }
+
+    @Test
+    void testAssignClaimToAttribute_GivenNonExistingAttributeValue_WhenSearchPatternGiven_ThenUpdateAttribute() {
+        var user = Mockito.mock(UserModel.class);
+
+        Mockito.when(user.getAttributeStream(attributeKey))
+                .thenReturn(Stream.empty());
+        var subject = new ClaimToAttributeMapper();
+        var config = newMapperConfig();
+        setWhiteSpace(config);
+        setLowerCase(config);
+        setSearchPattern(config, "\\s*Sapphire.*");
+
+        subject.assignClaimToAttribute(realmName, idpAlias, user, List.of(" Sapphire Stars", "another group"), config);
+
+        Mockito.verify(user).setAttribute(attributeKey, List.of("sapphire-stars"));
     }
 
     @Test
@@ -106,6 +124,10 @@ class ClaimToAttributeMapperTest {
 
     private void setIgnorePattern(ClaimToAttributeMapper.MapperConfig mapperConfig, String pattern) {
         mapperConfig.map.put(ClaimToAttributeMapper.IGNORE_ENTRIES_PROPERTY, pattern);
+    }
+
+    private void setSearchPattern(ClaimToAttributeMapper.MapperConfig mapperConfig, String pattern) {
+        mapperConfig.map.put(ClaimToAttributeMapper.SEARCH_ENTRIES_PROPERTY, pattern);
     }
 
     private void setLowerCase(ClaimToAttributeMapper.MapperConfig mapperConfig) {
