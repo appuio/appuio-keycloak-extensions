@@ -25,7 +25,6 @@ class ClaimToAttributeMapperTest {
 
         var subject = new ClaimToAttributeMapper();
         var config = newMapperConfig();
-        setIgnorePatterns(config);
         subject.assignClaimToAttribute(realmName, idpAlias, user, Collections.emptyList(), config);
 
         Mockito.verify(user, Mockito.never()).setAttribute(Mockito.anyString(), Mockito.anyList());
@@ -40,7 +39,6 @@ class ClaimToAttributeMapperTest {
 
         var subject = new ClaimToAttributeMapper();
         var config = newMapperConfig();
-        setIgnorePatterns(config);
         subject.assignClaimToAttribute(realmName, idpAlias, user, List.of("sapphire-stars"), config);
 
         Mockito.verify(user).setAttribute(attributeKey, List.of("sapphire-stars"));
@@ -55,7 +53,6 @@ class ClaimToAttributeMapperTest {
 
         var subject = new ClaimToAttributeMapper();
         var config = newMapperConfig();
-        setIgnorePatterns(config);
         setOverwriteEnabled(config);
         subject.assignClaimToAttribute(realmName, idpAlias, user, List.of("rose-canyon"), config);
 
@@ -70,7 +67,6 @@ class ClaimToAttributeMapperTest {
                 .thenReturn(Stream.of(""));
         var subject = new ClaimToAttributeMapper();
         var config = newMapperConfig();
-        setIgnorePatterns(config);
         subject.assignClaimToAttribute(realmName, idpAlias, user, List.of("sapphire-stars"), config);
 
         Mockito.verify(user).setAttribute(attributeKey, List.of("sapphire-stars"));
@@ -86,7 +82,7 @@ class ClaimToAttributeMapperTest {
         var config = newMapperConfig();
         setWhiteSpace(config);
         setLowerCase(config);
-        setIgnorePatterns(config, "\\s*Sapphire.*", "another pattern");
+        setIgnorePattern(config, "\\s*Sapphire.*");
 
         subject.assignClaimToAttribute(realmName, idpAlias, user, List.of(" Sapphire Stars"), config);
 
@@ -102,15 +98,14 @@ class ClaimToAttributeMapperTest {
 
         var subject = new ClaimToAttributeMapper();
         var config = newMapperConfig();
-        setIgnorePatterns(config);
 
         subject.assignClaimToAttribute(realmName, idpAlias, user, List.of("sapphire-stars", "rose-canyon"), config);
 
         Mockito.verify(user, Mockito.never()).setAttribute(Mockito.anyString(), Mockito.anyList());
     }
 
-    private void setIgnorePatterns(ClaimToAttributeMapper.MapperConfig mapperConfig, String... patterns) {
-        mapperConfig.map.put(ClaimToAttributeMapper.IGNORE_ENTRIES_PROPERTY, String.join("##", patterns));
+    private void setIgnorePattern(ClaimToAttributeMapper.MapperConfig mapperConfig, String pattern) {
+        mapperConfig.map.put(ClaimToAttributeMapper.IGNORE_ENTRIES_PROPERTY, pattern);
     }
 
     private void setLowerCase(ClaimToAttributeMapper.MapperConfig mapperConfig) {
