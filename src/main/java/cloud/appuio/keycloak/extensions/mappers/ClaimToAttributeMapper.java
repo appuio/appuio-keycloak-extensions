@@ -12,7 +12,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class ClaimToAttributeMapper extends AbstractClaimMapper {
     private static final Logger logger = Logger.getLogger(ClaimToAttributeMapper.class);
@@ -75,7 +74,7 @@ public class ClaimToAttributeMapper extends AbstractClaimMapper {
     }
 
     private boolean ignoreEntriesThatMatchRegex(MapperConfig config, String groupModel) {
-        return config.getIgnoreEntriesPatterns().noneMatch(groupModel::matches);
+        return !groupModel.matches(config.getIgnoreEntriesPattern());
     }
 
     private boolean ignoreEmptyEntries(String group) {
@@ -109,12 +108,11 @@ public class ClaimToAttributeMapper extends AbstractClaimMapper {
     @Override
     public List<ProviderConfigProperty> getConfigProperties() {
         var ignoreEntries = new ProviderConfigProperty(
-                IGNORE_ENTRIES_PROPERTY, "Ignore entries patterns", null, ProviderConfigProperty.MULTIVALUED_STRING_TYPE, null
+                IGNORE_ENTRIES_PROPERTY, "Ignore entries pattern", null, ProviderConfigProperty.STRING_TYPE, null
         );
         ignoreEntries.setHelpText("The claim might contain multiple values that you want to ignore. " +
-                "Each pattern is a regex that is matched against each claim entry before being trimmed or formatted. " +
-                "If any pattern matches, the entry is ignored. " +
-                "NOTE: Do NOT specify 2 or more '#' in sequence per pattern.");
+                "This pattern is a regex that is matched against each claim entry before being trimmed or formatted. " +
+                "If the pattern matches, the entry is ignored.");
 
         var targetAttribute = new ProviderConfigProperty(
                 TARGET_ATTRIBUTE_PROPERTY, "Target attribute", null, ProviderConfigProperty.STRING_TYPE, ""
@@ -145,10 +143,8 @@ public class ClaimToAttributeMapper extends AbstractClaimMapper {
             this.map = map;
         }
 
-        Stream<String> getIgnoreEntriesPatterns() {
-            // Strings of type MULTIVALUED_STRING_TYPE are stored as a single string, delimited by "##".
-            String ignoreEntriesRaw = map.getOrDefault(IGNORE_ENTRIES_PROPERTY, "");
-            return Arrays.stream(ignoreEntriesRaw.split("##")).filter(s -> !"".equals(s));
+        String getIgnoreEntriesPattern() {
+            return map.getOrDefault(IGNORE_ENTRIES_PROPERTY, "");
         }
 
         String getTargetAttributeKey() {

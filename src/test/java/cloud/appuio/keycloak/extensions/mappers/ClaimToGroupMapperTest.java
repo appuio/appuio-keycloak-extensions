@@ -107,7 +107,7 @@ class ClaimToGroupMapperTest {
     void testFilterGroupNames_GivenListOfPattern_WhenPatternMatches_ThenReturnFormatted() {
         var subject = new ClaimToGroupMapper();
         var config = newMapperConfig();
-        setIncludePatterns(config, "^Rose.*");
+        setIncludePattern(config, "^Rose.*");
         setLowerCase(config);
         setWhiteSpace(config);
 
@@ -120,7 +120,7 @@ class ClaimToGroupMapperTest {
     void testFilterGroupNames_GivenListOfPattern_WhenPatternDoesNotMatch_ThenReturnEmpty() {
         var subject = new ClaimToGroupMapper();
         var config = newMapperConfig();
-        setIncludePatterns(config, "^rose.*");
+        setIncludePattern(config, "^rose.*");
 
         var result = subject.filterGroupNames(List.of("Rose Canyon"), config);
 
@@ -135,8 +135,8 @@ class ClaimToGroupMapperTest {
         mapperConfig.map.put(ClaimToGroupMapper.CREATE_GROUPS, Boolean.toString(true));
     }
 
-    private void setIncludePatterns(ClaimToGroupMapper.MapperConfig mapperConfig, String... patterns) {
-        mapperConfig.map.put(ClaimToGroupMapper.INCLUDE_PATTERNS, String.join("##", patterns));
+    private void setIncludePattern(ClaimToGroupMapper.MapperConfig mapperConfig, String pattern) {
+        mapperConfig.map.put(ClaimToGroupMapper.INCLUDE_PATTERNS, pattern);
     }
 
     private void setLowerCase(ClaimToGroupMapper.MapperConfig mapperConfig) {

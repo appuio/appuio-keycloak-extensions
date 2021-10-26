@@ -71,13 +71,13 @@ public class ClaimToGroupMapper extends AbstractClaimMapper {
                 .withToLowerCase(config.enabledToLowerCase());
 
         return rawGroupNames.stream()
-                .filter(rawName -> matchesAnyPattern(config.getIncludePatterns(), rawName))
+                .filter(rawName -> matchesPattern(config.getIncludePattern(), rawName))
                 .map(formatter::format)
                 .collect(Collectors.toSet());
     }
 
-    private boolean matchesAnyPattern(List<String> patterns, String rawName) {
-        return patterns.isEmpty() || patterns.stream().anyMatch(rawName::matches);
+    private boolean matchesPattern(String pattern, String rawName) {
+        return "".equals(pattern) || rawName.matches(pattern);
     }
 
     private void joinGroupsInClaim(RealmModel realm, UserModel user, Set<String> groupNamesInClaim, Instrumentation instrumentation) {
@@ -135,10 +135,8 @@ public class ClaimToGroupMapper extends AbstractClaimMapper {
             return map.getOrDefault(GroupNameFormatter.TRIM_PREFIX_PROPERTY, "");
         }
 
-        List<String> getIncludePatterns() {
-            // Strings of type MULTIVALUED_STRING_TYPE are stored as a single string, delimited by "##".
-            String rawPatterns = map.getOrDefault(INCLUDE_PATTERNS, "");
-            return Arrays.stream(rawPatterns.split("##")).filter(s -> !"".equals(s)).collect(Collectors.toList());
+        String getIncludePattern() {
+            return map.getOrDefault(INCLUDE_PATTERNS, "");
         }
 
         boolean enabledCreateGroups() {
@@ -158,11 +156,11 @@ public class ClaimToGroupMapper extends AbstractClaimMapper {
                 "To use dot (.) literally, escape it with backslash (\\.)");
 
         var includePatternsProperty = new ProviderConfigProperty(
-                INCLUDE_PATTERNS, "Match patterns", null, ProviderConfigProperty.MULTIVALUED_STRING_TYPE, ""
+                INCLUDE_PATTERNS, "Match pattern", null, ProviderConfigProperty.STRING_TYPE, ""
         );
-        includePatternsProperty.setHelpText("Only sync groups when their name matches one of the given pattern. " +
+        includePatternsProperty.setHelpText("Only sync groups when their name matches the given pattern. " +
                 "If empty, all groups are synced. " +
-                "The patterns are matched before trimming whitespaces or prefix and before lowering case.");
+                "The pattern is matched before trimming whitespaces or prefix and before lowering case.");
 
         var createGroupsProperty = new ProviderConfigProperty(
                 CREATE_GROUPS, "Create groups if not exists", null, ProviderConfigProperty.BOOLEAN_TYPE, false
